@@ -13,8 +13,9 @@ const port = process.env.PORT || 6500;
     // .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
     // .listen(port, () => console.log(`Listening on ${port}`));
 
-const server = http.createServer(app);
-server.listen(port);
+const server = http.createServer(app).listen(port, (err) => {
+    if (err) throw err;
+})
 
 const { Server } = require('ws');
 
