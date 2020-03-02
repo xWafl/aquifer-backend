@@ -1,5 +1,5 @@
-declare var require: any;
-declare var process: any;
+// declare var require: any;
+// declare var process: any;
 
 // const firebase = require("firebase/app");
 
