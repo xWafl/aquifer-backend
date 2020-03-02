@@ -93,6 +93,6 @@ wss.on('connection', function connection(ws) {
 //     });
 // });
 
-http.listen(port, function(){
-    console.log('listening on *:' + port);
-});
+// http.listen(port, function(){
+//     console.log('listening on *:' + port);
+// });
