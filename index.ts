@@ -1,5 +1,5 @@
-// declare var require: any;
-// declare var process: any;
+declare var require: any;
+declare var process: any;
 
 // const firebase = require("firebase/app");
 
@@ -9,9 +9,13 @@ const moment = require('moment');
 // const io = require('socket.io').listen(http);
 const port = process.env.PORT || 6500;
 
-const LeWebSocket = require('ws');
+const server = app()
+    // .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
+    .listen(port, () => console.log(`Listening on ${port}`));
 
-const wss = new LeWebSocket.Server({port: 6600});
+const { Server } = require('ws');
+
+const wss = new Server({ server });
 
 let messages = [];
 let highestId = 0;
