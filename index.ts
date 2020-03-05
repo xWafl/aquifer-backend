@@ -124,6 +124,12 @@ wss.on('connection', function connection(ws) {
                 client.send(JSON.stringify(["newChannel", channels]));
             }
         }
+        if (category === "deleteChannel") {
+            delete channels[message];
+            for (const client of clients) {
+                client.send(JSON.stringify(["deleteChannel", channels]));
+            }
+        }
     });
     console.log(JSON.stringify(["connected", "connected"]));
     ws.send(JSON.stringify(["connected", "connected"]));
