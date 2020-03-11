@@ -39,7 +39,6 @@ let messages: Array<Message> = [];
 let highestId = 0;
 let highestUserId = 0;
 let highestChannelId = 0;
-let clients = [];
 let users = {};
 let channels = {};
 
@@ -64,7 +63,6 @@ wss.on('connection', function connection(ws) {
         console.log(data);
         if (data !== '{"kind":"ping"}') {
             const [category, message] = JSON.parse(data);
-            // console.log(category);
             if (category === "message") {
                 const msgInfo = message;
                 const newMessage = new Message (
@@ -102,8 +100,6 @@ wss.on('connection', function connection(ws) {
                 }
             }
             if (category === "queryMessages") {
-                // console.log("Messages queried!");
-                // console.log(messages);
                 sendToClients("messageList", messages);
             }
             if (category === "queryChannels") {
@@ -111,41 +107,23 @@ wss.on('connection', function connection(ws) {
             }
             if (category === "newUser") {
                 const theUser = new User (message.username, message.usernum, 1, ++highestUserId);
-                // console.log(theUser);
                 ws.userDetails = theUser;
                 const arrayClients = Array.from(wss.clients);
-                // console.log(arrayClients);
                 // @ts-ignore
                 const arrayUsers: Array<User> = Array.from(arrayClients, x => x.userDetails).filter(l => l != null);
-                // console.log(arrayUsers);
-                // let objUsers = {};
                 users = arrayUsers.reduce((acc, elem) => {
                     acc[elem.id] = elem;
                     return acc;
                 }, {});
-                // for (const user of arrayUsers) {
-                //     objUsers[user.id] = user;
-                // }
-                // console.log(wss.clients);
                 console.log("new length: " + wss.clients.size);
                 ws.send(JSON.stringify(["bestowId", theUser.id]));
                 sendToClients("newUser", users);
             }
             if (category === "loseUser") {
-                // console.log(wss.clients);
                 console.log("new length: " + wss.clients.size);
                 delete users[message.id];
                 delete users[ws.userId];
                 sendToClients("loseUser", users);
-                // disableUser(message);
-                // delete clients[message.id];
-                // console.log(Object.keys(clients).length);
-                // for (const client of clients) {
-                //     console.log(client === ws);
-                //     if (client !== ws) {
-                //         client.send(JSON.stringify(["loseUser", users]));
-                //     }
-                // }
             }
             if (category === "newChannel") {
                 const channelId = ++highestChannelId;
@@ -156,28 +134,8 @@ wss.on('connection', function connection(ws) {
                 delete channels[message];
                 sendToClients("deleteChannel", channels);
             }
-            // if (category === "userHeartbeat") {
-            //     console.log("Heartbeat emit received!");
-            //     console.log(message);
-            //     if (heartbeats[message.id]) {
-            //         console.log("Heartbeat received!");
-            //         clearTimeout(heartbeats[message.id]);
-            //         delete heartbeats[message.id];
-            //     }
-            //     console.log(heartbeats);
-            //     heartbeats[message.id] = setTimeout( () => {
-            //         disableUser(message);
-            //     }, 30000);
-            // }
         }
     });
-    // ws.on('close', function connection () {
-        // clearInterval(interval);
-    // })
-    // ws.on("pong", heartbeat);
-
-    // console.log(JSON.stringify(["connected", "connected"]));
-    // ws.send(JSON.stringify(["connected", "connected"]));
 });
 
 setWsHeartbeat(wss, (ws, data) => {
@@ -185,28 +143,3 @@ setWsHeartbeat(wss, (ws, data) => {
         ws.send('{"kind":"pong"}');
     }
 }, 30000);
-
-// const interval = setInterval(function ping() {
-//     wss.clients.forEach(function each(ws) {
-//         if (ws.isAlive === false) return ws.terminate();
-//
-//         ws.isAlive = false;
-//         ws.ping();
-//     });
-// }, 30000);
-
-// app.get('/', function(req, res){
-//     res.sendFile(__dirname + '/index.html');
-// });  
-
-// io.on('connection', function(socket){
-//     // console.log("we're connected");
-//     socket.on('chatmessage', function(msg){
-//         console.log("New message: " + msg);
-//         io.emit('chatmessage', {msg: msg});
-//     });
-// });
-
-// http.listen(port, function(){
-//     console.log('listening on *:' + port);
-// });
