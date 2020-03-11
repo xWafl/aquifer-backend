@@ -9,6 +9,33 @@ const moment = require('moment');
 // const io = require('socket.io').listen(http);
 const port = process.env.PORT || 5000;
 
+const { Client } = require('pg');
+
+const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    },
+    user: process.env.USER,
+    password: process.env.PASSWORD,
+    host: process.env.HOST,
+    database: process.env.DATABASE,
+});
+
+client.connect()
+    .catch((err) => {
+        console.error(err);
+        client.end();
+    });
+
+// client.query('SELECT table_schema,table_name FROM information_schema.tables;', (err, res) => {
+//     if (err) throw err;
+//     for (let row of res.rows) {
+//         console.log(JSON.stringify(row));
+//     }
+//     client.end();
+// });
+
 // const server = app()
     // .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
     // .listen(port, () => console.log(`Listening on ${port}`));
@@ -28,7 +55,7 @@ class User {
 }
 
 class Message {
-    constructor(public user: User, public utctime: string, public date: string, public message: string, public channel: string, public id: number, public active: boolean){}
+    constructor(public user: User, public utctime: number, public message: string, public channel: string, public id: number, public active: boolean){}
 }
 
 class Channel {
@@ -66,20 +93,19 @@ wss.on('connection', function connection(ws) {
                 const msgInfo = message;
                 const newMessage = new Message (
                     msgInfo.user,
-                    moment(),
-                    moment().calendar(),
+                    moment().valueOf(),
                     msgInfo.message,
                     msgInfo.channel,
                     ++highestId,
                     true,
                 );
-                console.log(msgInfo.user);
+                // console.log(msgInfo.user);
                 msgInfo.user.messages.push(newMessage.id);
                 const isUserAuth = checkUser(msgInfo.user, users);
                 if (isUserAuth === true) {
                     messages.push(newMessage);
                     sendToClients("message", newMessage);
-                    console.log(msgInfo.user.messages);
+                    // console.log(msgInfo.user.messages);
                 }
             }
             if (category === "editMessage") {
