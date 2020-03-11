@@ -106,7 +106,7 @@ wss.on('connection', function connection(ws) {
                 sendToClients("channelList", channels);
             }
             if (category === "newUser") {
-                const theUser = new User (message.username, message.usernum, 1, ++highestUserId, [0]);
+                const theUser = new User (message.username, message.usernum, 1, ++highestUserId, message.messages);
                 ws.userDetails = theUser;
                 const arrayClients = Array.from(wss.clients);
                 // @ts-ignore
