@@ -24,7 +24,7 @@ const { Server } = require('ws');
 const wss = new Server({ server });
 
 class User {
-    constructor(public username: string, public usernum: number, public currentChannel: number, public id: number){}
+    constructor(public username: string, public usernum: number, public currentChannel: number, public id: number, public messages: Array<number>){}
 }
 
 class Message {
@@ -60,7 +60,6 @@ const sendToClients = (category, data) => {
 wss.on('connection', function connection(ws) {
     ws.isAlive = true;
     ws.on('message', function incoming(data) {
-        console.log(data);
         if (data !== '{"kind":"ping"}') {
             const [category, message] = JSON.parse(data);
             if (category === "message") {
@@ -74,17 +73,18 @@ wss.on('connection', function connection(ws) {
                     ++highestId,
                     true,
                 );
+                console.log(msgInfo.user);
+                msgInfo.user.messages.push(newMessage.id);
                 const isUserAuth = checkUser(msgInfo.user, users);
                 if (isUserAuth === true) {
                     messages.push(newMessage);
                     sendToClients("message", newMessage);
-                    console.log('received: %s', message.message);
+                    console.log(msgInfo.user.messages);
                 }
             }
             if (category === "editMessage") {
                 for (let i in messages) {
                     if (messages[i].id === message.id) {
-                        console.log("New message: " + message.msg + "|" + messages[i].message);
                         messages[i].message = message.msg;
                     }
                 }
@@ -106,7 +106,7 @@ wss.on('connection', function connection(ws) {
                 sendToClients("channelList", channels);
             }
             if (category === "newUser") {
-                const theUser = new User (message.username, message.usernum, 1, ++highestUserId);
+                const theUser = new User (message.username, message.usernum, 1, ++highestUserId, [0]);
                 ws.userDetails = theUser;
                 const arrayClients = Array.from(wss.clients);
                 // @ts-ignore
@@ -115,12 +115,10 @@ wss.on('connection', function connection(ws) {
                     acc[elem.id] = elem;
                     return acc;
                 }, {});
-                console.log("new length: " + wss.clients.size);
                 ws.send(JSON.stringify(["bestowId", theUser.id]));
                 sendToClients("newUser", users);
             }
             if (category === "loseUser") {
-                console.log("new length: " + wss.clients.size);
                 delete users[message.id];
                 delete users[ws.userId];
                 sendToClients("loseUser", users);
