@@ -55,7 +55,7 @@ class User {
 }
 
 class Message {
-    constructor(public user: User, public utctime: number, public message: string, public channel: string, public id: number, public active: boolean){}
+    constructor(public user: User, public utctime: number, public message: string, public channel: number, public id: number){}
 }
 
 class Channel {
@@ -96,9 +96,14 @@ wss.on('connection', function connection(ws) {
                     moment().valueOf(),
                     msgInfo.message,
                     msgInfo.channel,
-                    ++highestId,
-                    true,
+                    ++highestId
                 );
+                const query = "INSERT INTO messages VALUES (" + newMessage.user.id + ", " + newMessage.utctime + ", '" + newMessage.message + "', " + newMessage.channel  + ", " + newMessage.id + ");";
+                console.log(query);
+                client.query(query)
+                    .catch((err) => {
+                        console.error(err);
+                    });
                 // console.log(msgInfo.user);
                 msgInfo.user.messages.push(newMessage.id);
                 const isUserAuth = checkUser(msgInfo.user, users);
@@ -120,6 +125,7 @@ wss.on('connection', function connection(ws) {
             if (category === "deleteMessage") {
                 for (let i in messages) {
                     if (messages[i].id === message) {
+                        const query = "DELETE FROM messages WHERE id = " + message + ";";
                         messages.splice(+i, 1);
                         sendToClients("deleteMessage", +i);
                     }
@@ -132,7 +138,13 @@ wss.on('connection', function connection(ws) {
                 sendToClients("channelList", channels);
             }
             if (category === "newUser") {
-                const theUser = new User (message.username, message.usernum, 1, ++highestUserId, message.messages);
+                const theUser = new User (message.username, message.userNum, 1, ++highestUserId, message.messages);
+                const query = "INSERT INTO users VALUES ('" + theUser.username + "', " + theUser.usernum + ", " + theUser.currentChannel + ", " + theUser.id + ");";
+                console.log(query);
+                client.query(query)
+                    .catch((err) => {
+                        console.error(err);
+                    });
                 ws.userDetails = theUser;
                 const arrayClients = Array.from(wss.clients);
                 // @ts-ignore
@@ -147,6 +159,11 @@ wss.on('connection', function connection(ws) {
             if (category === "loseUser") {
                 delete users[message.id];
                 delete users[ws.userId];
+                const query = "DELETE FROM users WHERE id = " + message.id + ";";
+                client.query(query)
+                    .catch((err) => {
+                        console.error(err);
+                    });
                 sendToClients("loseUser", users);
             }
             if (category === "newChannel") {
@@ -167,3 +184,25 @@ setWsHeartbeat(wss, (ws, data) => {
         ws.send('{"kind":"pong"}');
     }
 }, 30000);
+
+// const updateMessagesFromDb = () => {
+//     client.query("SELECT * FROM messages;")
+//         .then((result) => {
+//             for (let message of result.rows) {
+//                 const newMessage = new Message (
+//                     message.userid,
+//                     message.date,
+//                     message.message,
+//                     message.channel,
+//                     message.id
+//                 );
+//                 messages.push(newMessage);
+//             }
+//         })
+// };
+//
+// const init = () => {
+//     updateMessagesFromDb();
+// };
+//
+// init();
