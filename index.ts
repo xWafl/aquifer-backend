@@ -40,15 +40,8 @@ client.connect()
     // .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
     // .listen(port, () => console.log(`Listening on ${port}`));
 
-const server = http.listen(port, (err) => {
-    if (err) throw err;
-    console.log("HTTP server listening on: " + port);
-});
-
 const { setWsHeartbeat } = require("ws-heartbeat/server");
 const { Server } = require('ws');
-
-const wss = new Server({ server });
 
 class User {
     constructor(public username: string, public usernum: number, public currentChannel: number, public id: number, public messages: Array<number>){}
@@ -59,7 +52,7 @@ class Message {
 }
 
 class Channel {
-    constructor(public name: string, public id: number, public messages: Array<Message>) {}
+    constructor(public name: string, public id: number, public messages: Array<number>) {}
 }
 
 let messages: Array<Message> = [];
@@ -78,11 +71,92 @@ const checkUser = (checkedUser: User, users: Object) => {
     return false;
 };
 
+const getHighestFromArr = (arr: Array<number>) => {
+    for (let i = 0; i < Math.max(...arr); i++) {
+        if (arr.indexOf(+i) === -1) {
+            return +i;
+        }
+    }
+};
+
 const sendToClients = (category, data) => {
     wss.clients.forEach(function each(ws) {
         ws.send(JSON.stringify([category, data]));
     })
 };
+
+const updateMessagesFromDb = () => {
+    console.log("Getting message from database...");
+    client.query("SELECT * FROM messages;")
+        .then((result) => {
+            let messageIds: Array<number> = [];
+            for (let message of result.rows) {
+                console.log(message);
+                let userFound = false;
+                let msgUser: any;
+                let takenIds: Array<number> = [];
+                client.query("SELECT * FROM users WHERE id = " + message.userid + ";")
+                    .then((res) => {
+                        for (let user of res.rows) {
+                            takenIds.push(user.id);
+                            if (user.id === message.userid) {
+                                userFound = true;
+                                msgUser = user;
+                                console.log("User found!");
+                                console.log(user);
+                            }
+                        }
+                        highestUserId = getHighestFromArr(takenIds);
+                    })
+                    .then(() => {
+                        let messageUser: User;
+                        if (userFound === true) {
+                            messageUser = new User (
+                                msgUser.username,
+                                msgUser.usernum,
+                                msgUser.currentChannel,
+                                msgUser.id,
+                                []
+                            );
+                        } else {
+                            messageUser = new User (
+                                "DeletedUser",
+                                9999,
+                                0,
+                                0,
+                                [],
+                            );
+                        }
+                        const newMessage = new Message (
+                            messageUser,
+                            message.date,
+                            message.message,
+                            message.channel,
+                            message.id
+                        );
+                        messages.push(newMessage);
+                    })
+                    .catch((err) => {
+                        console.error(err);
+                    });
+                messageIds.push(message.id);
+            }
+            highestId = getHighestFromArr(messageIds);
+        })
+};
+
+const init = () => {
+    console.log("Initializing...");
+    updateMessagesFromDb();
+};
+
+const server = http.listen(port, (err) => {
+    if (err) throw err;
+    console.log("HTTP server listening on: " + port);
+    init();
+});
+
+const wss = new Server({ server });
 
 wss.on('connection', function connection(ws) {
     ws.isAlive = true;
@@ -105,6 +179,7 @@ wss.on('connection', function connection(ws) {
                         console.error(err);
                     });
                 // console.log(msgInfo.user);
+                channels[newMessage.channel].messages.push(newMessage.id);
                 msgInfo.user.messages.push(newMessage.id);
                 const isUserAuth = checkUser(msgInfo.user, users);
                 if (isUserAuth === true) {
@@ -184,25 +259,3 @@ setWsHeartbeat(wss, (ws, data) => {
         ws.send('{"kind":"pong"}');
     }
 }, 30000);
-
-// const updateMessagesFromDb = () => {
-//     client.query("SELECT * FROM messages;")
-//         .then((result) => {
-//             for (let message of result.rows) {
-//                 const newMessage = new Message (
-//                     message.userid,
-//                     message.date,
-//                     message.message,
-//                     message.channel,
-//                     message.id
-//                 );
-//                 messages.push(newMessage);
-//             }
-//         })
-// };
-//
-// const init = () => {
-//     updateMessagesFromDb();
-// };
-//
-// init();
