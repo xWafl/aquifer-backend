@@ -201,6 +201,10 @@ wss.on('connection', function connection(ws) {
                 for (let i in messages) {
                     if (messages[i].id === message) {
                         const query = "DELETE FROM messages WHERE id = " + message + ";";
+                        client.query(query)
+                            .catch((err) => {
+                                console.error(err);
+                            });
                         messages.splice(+i, 1);
                         sendToClients("deleteMessage", +i);
                     }
