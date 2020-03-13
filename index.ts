@@ -44,7 +44,7 @@ const { setWsHeartbeat } = require("ws-heartbeat/server");
 const { Server } = require('ws');
 
 class User {
-    constructor(public username: string, public usernum: number, public currentChannel: number, public id: number, public messages: Array<number>){}
+    constructor(public username: string, public userNum: number, public currentChannel: number, public id: number, public messages: Array<number>){}
 }
 
 class Message {
@@ -72,11 +72,17 @@ const checkUser = (checkedUser: User, users: Object) => {
 };
 
 const getHighestFromArr = (arr: Array<number>) => {
-    for (let i = 0; i < Math.max(...arr); i++) {
-        if (arr.indexOf(+i) === -1) {
-            return +i;
-        }
+    if (arr.length === 0) {
+        return 0;
     }
+    // for (let i = 1; i <= Math.max(...arr) + 1; i++) {
+    //     // console.log(i + "|" + arr.indexOf(+i) + "|" + Math.max(...arr));
+    //     if (arr.indexOf(+i) === -1) {
+    //         // console.log("done");
+    //         return +i;
+    //     }
+    // }
+    return Math.max(...arr) + 1;
 };
 
 const sendToClients = (category, data) => {
@@ -91,7 +97,7 @@ const updateMessagesFromDb = () => {
         .then((result) => {
             let messageIds: Array<number> = [];
             for (let message of result.rows) {
-                console.log(message);
+                // console.log(message);
                 let userFound = false;
                 let msgUser: any;
                 let takenIds: Array<number> = [];
@@ -102,8 +108,8 @@ const updateMessagesFromDb = () => {
                             if (user.id === message.userid) {
                                 userFound = true;
                                 msgUser = user;
-                                console.log("User found!");
-                                console.log(user);
+                                // console.log("User found!");
+                                // console.log(user);
                             }
                         }
                         highestUserId = getHighestFromArr(takenIds);
@@ -141,13 +147,32 @@ const updateMessagesFromDb = () => {
                     });
                 messageIds.push(message.id);
             }
+            console.log(messageIds);
             highestId = getHighestFromArr(messageIds);
+            console.log("Highest: " + highestId);
         })
+};
+
+const updateChannelsFromDb = () => {
+    console.log("Getting channels from database...");
+    client.query("SELECT * FROM channels;")
+        .then((result) => {
+            for (const channel of result.rows) {
+                console.log(channel.messages);
+                channels[channel.id] = new Channel(channel.name, channel.id, channel.messages);
+            }
+            console.log("Channels: ");
+            console.log(channels);
+        })
+        .catch((err) => {
+            console.error(err);
+        });
 };
 
 const init = () => {
     console.log("Initializing...");
     updateMessagesFromDb();
+    updateChannelsFromDb();
 };
 
 const server = http.listen(port, (err) => {
@@ -180,6 +205,12 @@ wss.on('connection', function connection(ws) {
                     });
                 // console.log(msgInfo.user);
                 channels[newMessage.channel].messages.push(newMessage.id);
+                const secondQuery = "UPDATE channels set messages = array_append(messages, " + newMessage.id + ");";
+                client.query(secondQuery)
+                    .catch((err) => {
+                        console.error(err);
+                    });
+
                 msgInfo.user.messages.push(newMessage.id);
                 const isUserAuth = checkUser(msgInfo.user, users);
                 if (isUserAuth === true) {
@@ -218,7 +249,7 @@ wss.on('connection', function connection(ws) {
             }
             if (category === "newUser") {
                 const theUser = new User (message.username, message.userNum, 1, ++highestUserId, message.messages);
-                const query = "INSERT INTO users VALUES ('" + theUser.username + "', " + theUser.usernum + ", " + theUser.currentChannel + ", " + theUser.id + ");";
+                const query = "INSERT INTO users VALUES ('" + theUser.username + "', " + theUser.userNum + ", " + theUser.currentChannel + ", " + theUser.id + ");";
                 console.log(query);
                 client.query(query)
                     .catch((err) => {
@@ -247,11 +278,22 @@ wss.on('connection', function connection(ws) {
             }
             if (category === "newChannel") {
                 const channelId = ++highestChannelId;
-                channels[channelId] = new Channel (message.name, channelId, []);
+                const newChannel = new Channel (message.name, channelId, []);
+                channels[channelId] = newChannel;
+                const query = "INSERT INTO channels VALUES ('" + newChannel.name + "', " + newChannel.id + ", '{}');";
+                client.query(query)
+                    .catch((err) => {
+                        console.error(err);
+                    });
                 sendToClients("newChannel", channels);
             }
             if (category === "deleteChannel") {
                 delete channels[message];
+                const query = "DELETE FROM channels WHERE id = " + message + ";";
+                client.query(query)
+                    .catch((err) => {
+                        console.error(err)
+                    });
                 sendToClients("deleteChannel", channels);
             }
         }
