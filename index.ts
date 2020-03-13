@@ -28,13 +28,17 @@ client.connect()
         client.end();
     });
 
-// client.query('SELECT table_schema,table_name FROM information_schema.tables;', (err, res) => {
-//     if (err) throw err;
-//     for (let row of res.rows) {
-//         console.log(JSON.stringify(row));
-//     }
-//     client.end();
-// });
+const knex = require('knex')({
+    client: 'pg',
+    version: '7.2',
+    connection: {
+        host : process.env.HOST,
+        user : process.env.USER,
+        password : process.env.PASSWORD,
+        database : process.env.DATABASE,
+        ssl: true
+    }
+});
 
 // const server = app()
     // .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
@@ -92,18 +96,19 @@ const sendToClients = (category, data) => {
 };
 
 const updateMessagesFromDb = () => {
-    console.log("Getting message from database...");
-    client.query("SELECT * FROM messages;")
-        .then((result) => {
+    console.log("Getting messages from database...");
+    knex.from("messages").select("*")
+        .then(rows => {
             let messageIds: Array<number> = [];
-            for (let message of result.rows) {
+            for (let message of rows) {
                 // console.log(message);
                 let userFound = false;
                 let msgUser: any;
                 let takenIds: Array<number> = [];
-                client.query("SELECT * FROM users WHERE id = " + message.userid + ";")
-                    .then((res) => {
-                        for (let user of res.rows) {
+                knex("users")
+                    .where({id: message.userid})
+                    .then(res => {
+                        for (let user of res) {
                             takenIds.push(user.id);
                             if (user.id === message.userid) {
                                 userFound = true;
@@ -144,33 +149,80 @@ const updateMessagesFromDb = () => {
                     })
                     .catch((err) => {
                         console.error(err);
+                        throw err;
                     });
                 messageIds.push(message.id);
             }
-            console.log(messageIds);
             highestId = getHighestFromArr(messageIds);
-            console.log("Highest: " + highestId);
         })
+        .catch((err) => {
+            console.error(err);
+            throw err;
+        });
 };
 
 const updateChannelsFromDb = () => {
     console.log("Getting channels from database...");
-    client.query("SELECT * FROM channels;")
-        .then((result) => {
-            for (const channel of result.rows) {
-                console.log(channel.messages);
+    knex.from("channels").select("*")
+        .then(rows => {
+            for (const channel of rows) {
+                // console.log(channel);
                 channels[channel.id] = new Channel(channel.name, channel.id, channel.messages);
             }
-            console.log("Channels: ");
-            console.log(channels);
+            // console.log("Channels: ");
+            // console.log(channels);
         })
         .catch((err) => {
             console.error(err);
         });
 };
 
+const deleteOldUsers = (sNum) => {
+    console.log("num: " + sNum);
+    knex("users")
+        .where({snum: sNum})
+        .del()
+        .catch((err) => {
+            console.error(err);
+            throw err;
+        });
+};
+
+const incrementSNum = () => {
+    return new Promise((resolve) => {
+        let sNum = 0;
+        knex("serverid")
+            .then((rows) => {
+                console.log(rows[0].snum);
+                sNum = rows[0].snum
+            })
+            .then(() => {
+                console.log("sNum: " + sNum);
+                knex("serverid")
+                    .update({snum: Number(Number(sNum) + 1)})
+                    .catch((err) => {
+                        console.error(err);
+                        throw err;
+                    });
+                resolve(sNum);
+            })
+            .catch((err) => {
+                console.error(err);
+                throw err;
+            });
+    });
+};
+
 const init = () => {
     console.log("Initializing...");
+    incrementSNum()
+        .then((sNum) => {
+            deleteOldUsers(sNum);
+        })
+        .catch((err) => {
+            console.error(err);
+            throw err;
+        });
     updateMessagesFromDb();
     updateChannelsFromDb();
 };
@@ -197,18 +249,28 @@ wss.on('connection', function connection(ws) {
                     msgInfo.channel,
                     ++highestId
                 );
-                const query = "INSERT INTO messages VALUES (" + newMessage.user.id + ", " + newMessage.utctime + ", '" + newMessage.message + "', " + newMessage.channel  + ", " + newMessage.id + ");";
-                console.log(query);
-                client.query(query)
+                const queryMessage = {
+                    userid: newMessage.user.id,
+                    date: newMessage.utctime,
+                    message: newMessage.message,
+                    channel: newMessage.channel,
+                    id: newMessage.id
+                };
+                // const query = "INSERT INTO messages VALUES (" + newMessage.user.id + ", " + newMessage.utctime + ", '" + newMessage.message + "', " + newMessage.channel  + ", " + newMessage.id + ");";
+                // console.log(query);
+                knex("messages").insert(queryMessage)
                     .catch((err) => {
                         console.error(err);
+                        throw err;
                     });
                 // console.log(msgInfo.user);
                 channels[newMessage.channel].messages.push(newMessage.id);
-                const secondQuery = "UPDATE channels set messages = array_append(messages, " + newMessage.id + ");";
-                client.query(secondQuery)
+                knex("channels")
+                    .where({id: newMessage.channel})
+                    .update({messages: knex.raw('array_append(messages, ?)', [newMessage.id])})
                     .catch((err) => {
                         console.error(err);
+                        throw err;
                     });
 
                 msgInfo.user.messages.push(newMessage.id);
@@ -231,10 +293,12 @@ wss.on('connection', function connection(ws) {
             if (category === "deleteMessage") {
                 for (let i in messages) {
                     if (messages[i].id === message) {
-                        const query = "DELETE FROM messages WHERE id = " + message + ";";
-                        client.query(query)
+                        knex("messages")
+                            .where({id: message})
+                            .del()
                             .catch((err) => {
                                 console.error(err);
+                                throw err;
                             });
                         messages.splice(+i, 1);
                         sendToClients("deleteMessage", +i);
@@ -248,31 +312,58 @@ wss.on('connection', function connection(ws) {
                 sendToClients("channelList", channels);
             }
             if (category === "newUser") {
-                const theUser = new User (message.username, message.userNum, 1, ++highestUserId, message.messages);
-                const query = "INSERT INTO users VALUES ('" + theUser.username + "', " + theUser.userNum + ", " + theUser.currentChannel + ", " + theUser.id + ");";
-                console.log(query);
-                client.query(query)
+                let sNum = 0;
+                knex("serverid")
+                    .then((rows) => {
+                        sNum = rows[0].snum
+                    })
+                    .then(() => {
+                        const theUser = new User (message.username, message.userNum, 1, ++highestUserId, message.messages);
+                        const queryDetails = {
+                            username: theUser.username,
+                            usernum: theUser.userNum,
+                            currentchannel: theUser.currentChannel,
+                            id: theUser.id,
+                            snum: sNum
+                        };
+                        knex("users")
+                            .insert(queryDetails)
+                            .catch((err) => {
+                                console.error(err);
+                                throw err;
+                            });
+                        ws.userDetails = theUser;
+                        const arrayClients = Array.from(wss.clients);
+                        // @ts-ignore
+                        const arrayUsers: Array<User> = Array.from(arrayClients, x => x.userDetails).filter(l => l != null);
+                        users = arrayUsers.reduce((acc, elem) => {
+                            acc[elem.id] = elem;
+                            return acc;
+                        }, {});
+                        ws.send(JSON.stringify(["bestowId", theUser.id]));
+                        sendToClients("newUser", users);
+                    })
                     .catch((err) => {
                         console.error(err);
+                        throw err;
                     });
-                ws.userDetails = theUser;
-                const arrayClients = Array.from(wss.clients);
-                // @ts-ignore
-                const arrayUsers: Array<User> = Array.from(arrayClients, x => x.userDetails).filter(l => l != null);
-                users = arrayUsers.reduce((acc, elem) => {
-                    acc[elem.id] = elem;
-                    return acc;
-                }, {});
-                ws.send(JSON.stringify(["bestowId", theUser.id]));
-                sendToClients("newUser", users);
             }
             if (category === "loseUser") {
                 delete users[message.id];
                 delete users[ws.userId];
-                const query = "DELETE FROM users WHERE id = " + message.id + ";";
-                client.query(query)
+                knex("users")
+                    .where({id: message.id})
+                    .del()
                     .catch((err) => {
                         console.error(err);
+                        throw err;
+                    });
+                knex("messages")
+                    .where({userid: message.id})
+                    .update({userid: 0})
+                    .catch((err) => {
+                        console.error(err);
+                        throw err;
                     });
                 sendToClients("loseUser", users);
             }
@@ -280,19 +371,22 @@ wss.on('connection', function connection(ws) {
                 const channelId = ++highestChannelId;
                 const newChannel = new Channel (message.name, channelId, []);
                 channels[channelId] = newChannel;
-                const query = "INSERT INTO channels VALUES ('" + newChannel.name + "', " + newChannel.id + ", '{}');";
-                client.query(query)
+                knex("channels")
+                    .insert({name: newChannel.name, id: newChannel.id, messages: []})
                     .catch((err) => {
                         console.error(err);
+                        throw err;
                     });
                 sendToClients("newChannel", channels);
             }
             if (category === "deleteChannel") {
                 delete channels[message];
-                const query = "DELETE FROM channels WHERE id = " + message + ";";
-                client.query(query)
-                    .catch((err) => {
-                        console.error(err)
+                knex("channels")
+                    .where({id: message})
+                    .del()
+                    .catch(err => {
+                        console.error(err);
+                        throw err;
                     });
                 sendToClients("deleteChannel", channels);
             }
