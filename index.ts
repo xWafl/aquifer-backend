@@ -9,7 +9,7 @@ const moment = require('moment');
 // const io = require('socket.io').listen(http);
 const port = process.env.PORT || 5000;
 
-const { Client } = require('pg');
+const {Client} = require('pg');
 
 const client = new Client({
     connectionString: process.env.DATABASE_URL,
@@ -32,31 +32,41 @@ const knex = require('knex')({
     client: 'pg',
     version: '7.2',
     connection: {
-        host : process.env.HOST,
-        user : process.env.USER,
-        password : process.env.PASSWORD,
-        database : process.env.DATABASE,
+        host: process.env.HOST,
+        user: process.env.USER,
+        password: process.env.PASSWORD,
+        database: process.env.DATABASE,
         ssl: true
     }
 });
 
 // const server = app()
-    // .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
-    // .listen(port, () => console.log(`Listening on ${port}`));
+// .use((req, res) => res.sendFile(INDEX, { root: __dirname }))
+// .listen(port, () => console.log(`Listening on ${port}`));
 
-const { setWsHeartbeat } = require("ws-heartbeat/server");
-const { Server } = require('ws');
+const {setWsHeartbeat} = require("ws-heartbeat/server");
+const {Server} = require('ws');
 
-class User {
-    constructor(public username: string, public userNum: number, public currentChannel: number, public id: number, public messages: Array<number>){}
+interface User {
+    username: string,
+    userNum: number,
+    currentChannel: number,
+    id: number,
+    messages: Array<number>
 }
 
-class Message {
-    constructor(public user: User, public utctime: number, public message: string, public channel: number, public id: number){}
+interface Message {
+    user: User,
+    utctime: number,
+    message: string,
+    channel: number,
+    id: number
 }
 
-class Channel {
-    constructor(public name: string, public id: number, public messages: Array<number>) {}
+interface Channel {
+    name: string,
+    id: number,
+    messages: Array<number>
 }
 
 let messages: Array<Message> = [];
@@ -95,134 +105,108 @@ const sendToClients = (category, data) => {
     })
 };
 
-const updateMessagesFromDb = () => {
+const updateMessagesFromDb = async () => {
     console.log("Getting messages from database...");
-    knex.from("messages").select("*")
-        .then(rows => {
-            let messageIds: Array<number> = [];
-            for (let message of rows) {
-                // console.log(message);
-                let userFound = false;
-                let msgUser: any;
-                let takenIds: Array<number> = [];
-                knex("users")
-                    .where({id: message.userid})
-                    .then(res => {
-                        for (let user of res) {
-                            takenIds.push(user.id);
-                            if (user.id === message.userid) {
-                                userFound = true;
-                                msgUser = user;
-                                // console.log("User found!");
-                                // console.log(user);
-                            }
-                        }
-                        highestUserId = getHighestFromArr(takenIds);
-                    })
-                    .then(() => {
-                        let messageUser: User;
-                        if (userFound === true) {
-                            messageUser = new User (
-                                msgUser.username,
-                                msgUser.usernum,
-                                msgUser.currentChannel,
-                                msgUser.id,
-                                []
-                            );
-                        } else {
-                            messageUser = new User (
-                                "DeletedUser",
-                                9999,
-                                0,
-                                0,
-                                [],
-                            );
-                        }
-                        const newMessage = new Message (
-                            messageUser,
-                            message.date,
-                            message.message,
-                            message.channel,
-                            message.id
-                        );
-                        messages.push(newMessage);
-                    })
-                    .catch((err) => {
-                        console.error(err);
-                        throw err;
-                    });
-                messageIds.push(message.id);
+    const rows = await knex.from("messages").select("*");
+    let messageIds: Array<number> = [];
+    for (let message of rows) {
+        let userFound = false;
+        let msgUser: any;
+        let takenIds: Array<number> = [];
+        const res = await knex("users").where({id: message.userid});
+        for (let user of res) {
+            takenIds.push(user.id);
+            if (user.id === message.userid) {
+                userFound = true;
+                msgUser = user;
             }
-            highestId = getHighestFromArr(messageIds);
-        })
-        .catch((err) => {
-            console.error(err);
-            throw err;
-        });
+        }
+        highestUserId = getHighestFromArr(takenIds);
+        let messageUser: User;
+        if (userFound === true) {
+            messageUser = {
+                username: msgUser.username,
+                userNum: msgUser.usernum,
+                currentChannel: msgUser.currentChannel,
+                id: msgUser.id,
+                messages: []
+            };
+        } else {
+            messageUser = {
+                username: "DeletedUser",
+                userNum: 9999,
+                currentChannel: 0,
+                id: 0,
+                messages: [],
+            };
+        }
+        const newMessage: Message = {
+            user: messageUser,
+            utctime: message.date,
+            message: message.message,
+            channel: message.channel,
+            id: message.id
+        };
+        messages.push(newMessage);
+        messageIds.push(message.id);
+    }
+    highestId = getHighestFromArr(messageIds);
 };
 
-const updateChannelsFromDb = () => {
+const updateChannelsFromDb = async () => {
     console.log("Getting channels from database...");
-    knex.from("channels").select("*")
-        .then(rows => {
-            for (const channel of rows) {
-                // console.log(channel);
-                channels[channel.id] = new Channel(channel.name, channel.id, channel.messages);
-            }
-            // console.log("Channels: ");
-            // console.log(channels);
-        })
-        .catch((err) => {
-            console.error(err);
-        });
+    try {
+        const rows = await knex.from("channels").select("*");
+        for (const channel of rows) {
+            // console.log(channel);
+            channels[channel.id] = {
+                name: channel.name,
+                id: channel.id,
+                messages: channel.messages
+            };
+        }
+    } catch (err) {
+        console.error(err);
+        throw err;
+    }
 };
 
 const deleteOldUsers = (sNum) => {
-    console.log("num: " + sNum);
-    knex("users")
-        .where({snum: sNum})
-        .del()
-        .catch((err) => {
-            console.error(err);
-            throw err;
-        });
-};
-
-const incrementSNum = () => {
-    return new Promise((resolve) => {
-        let sNum = 0;
-        knex("serverid")
-            .then((rows) => {
-                console.log(rows[0].snum);
-                sNum = rows[0].snum
-            })
-            .then(() => {
-                console.log("sNum: " + sNum);
-                knex("serverid")
-                    .update({snum: Number(Number(sNum) + 1)})
-                    .catch((err) => {
-                        console.error(err);
-                        throw err;
-                    });
-                resolve(sNum);
-            })
-            .catch((err) => {
+    console.log(sNum + ": Deleting old users...");
+    try {
+        // knex("users")
+        //     .where("snum", "<", sNum)
+        //     .del();
+        knex.raw('delete from users where snum <= ' + sNum + ";")
+            .catch(err => {
                 console.error(err);
                 throw err;
             });
+        console.log("Users deleted.");
+    } catch (err) {
+        console.error(err);
+        throw err;
+    }
+};
+
+const incrementSNum = () => {
+    return new Promise(async (resolve) => {
+        const rows = await knex("serverid");
+        const sNum = rows[0].snum;
+        try {
+            await knex("serverid").update({snum: Number(Number(sNum) + 1)});
+        } catch (err) {
+            console.error(err);
+            throw err;
+        }
+        resolve(sNum);
     });
 };
 
-const init = () => {
+const init = async () => {
     console.log("Initializing...");
-    incrementSNum()
-        .then((sNum) => {
-            deleteOldUsers(sNum);
-        })
-        .catch((err) => {
-            console.error(err);
-            throw err;
-        });
+    const sNum = await incrementSNum();
+    deleteOldUsers(sNum);
     updateMessagesFromDb();
     updateChannelsFromDb();
 };
@@ -233,22 +217,22 @@ const server = http.listen(port, (err) => {
     init();
 });
 
-const wss = new Server({ server });
+const wss = new Server({server});
 
 wss.on('connection', function connection(ws) {
     ws.isAlive = true;
-    ws.on('message', function incoming(data) {
+    ws.on('message', async function incoming(data) {
         if (data !== '{"kind":"ping"}') {
             const [category, message] = JSON.parse(data);
             if (category === "message") {
                 const msgInfo = message;
-                const newMessage = new Message (
-                    msgInfo.user,
-                    moment().valueOf(),
-                    msgInfo.message,
-                    msgInfo.channel,
-                    ++highestId
-                );
+                const newMessage: Message = {
+                    user: msgInfo.user,
+                    utctime: moment().valueOf(),
+                    message: msgInfo.message,
+                    channel: msgInfo.channel,
+                    id: ++highestId
+                };
                 const queryMessage = {
                     userid: newMessage.user.id,
                     date: newMessage.utctime,
@@ -312,41 +296,38 @@ wss.on('connection', function connection(ws) {
                 sendToClients("channelList", channels);
             }
             if (category === "newUser") {
-                let sNum = 0;
-                knex("serverid")
-                    .then((rows) => {
-                        sNum = rows[0].snum
-                    })
-                    .then(() => {
-                        const theUser = new User (message.username, message.userNum, 1, ++highestUserId, message.messages);
-                        const queryDetails = {
-                            username: theUser.username,
-                            usernum: theUser.userNum,
-                            currentchannel: theUser.currentChannel,
-                            id: theUser.id,
-                            snum: sNum
-                        };
-                        knex("users")
-                            .insert(queryDetails)
-                            .catch((err) => {
-                                console.error(err);
-                                throw err;
-                            });
-                        ws.userDetails = theUser;
-                        const arrayClients = Array.from(wss.clients);
-                        // @ts-ignore
-                        const arrayUsers: Array<User> = Array.from(arrayClients, x => x.userDetails).filter(l => l != null);
-                        users = arrayUsers.reduce((acc, elem) => {
-                            acc[elem.id] = elem;
-                            return acc;
-                        }, {});
-                        ws.send(JSON.stringify(["bestowId", theUser.id]));
-                        sendToClients("newUser", users);
-                    })
+                const rows = await knex("serverid");
+                const sNum = rows[0].snum;
+                const theUser: User = {
+                    username: message.username,
+                    userNum: message.userNum,
+                    currentChannel: 1,
+                    id: ++highestUserId,
+                    messages: message.messages
+                };
+                const queryDetails = {
+                    username: theUser.username,
+                    usernum: theUser.userNum,
+                    currentchannel: theUser.currentChannel,
+                    id: theUser.id,
+                    snum: sNum
+                };
+                knex("users")
+                    .insert(queryDetails)
                     .catch((err) => {
                         console.error(err);
                         throw err;
                     });
+                ws.userDetails = theUser;
+                const arrayClients = Array.from(wss.clients);
+                // @ts-ignore
+                const arrayUsers: Array<User> = Array.from(arrayClients, x => x.userDetails).filter(l => l != null);
+                users = arrayUsers.reduce((acc, elem) => {
+                    acc[elem.id] = elem;
+                    return acc;
+                }, {});
+                ws.send(JSON.stringify(["bestowId", theUser.id]));
+                sendToClients("newUser", users);
             }
             if (category === "loseUser") {
                 delete users[message.id];
@@ -369,7 +350,11 @@ wss.on('connection', function connection(ws) {
             }
             if (category === "newChannel") {
                 const channelId = ++highestChannelId;
-                const newChannel = new Channel (message.name, channelId, []);
+                const newChannel: Channel = {
+                    name: message.name,
+                    id: channelId,
+                    messages: []
+                };
                 channels[channelId] = newChannel;
                 knex("channels")
                     .insert({name: newChannel.name, id: newChannel.id, messages: []})
@@ -383,6 +368,13 @@ wss.on('connection', function connection(ws) {
                 delete channels[message];
                 knex("channels")
                     .where({id: message})
+                    .del()
+                    .catch(err => {
+                        console.error(err);
+                        throw err;
+                    });
+                knex("messages")
+                    .where({channel: message})
                     .del()
                     .catch(err => {
                         console.error(err);
