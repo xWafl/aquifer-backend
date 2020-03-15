@@ -1,0 +1,104 @@
+const knex = require('knex')({
+    client: 'pg',
+    version: '7.2',
+    connection: {
+        host: process.env.HOST,
+        user: process.env.USER,
+        password: process.env.PASSWORD,
+        database: process.env.DATABASE,
+        ssl: true
+    }
+});
+
+import {User, Message} from "./interfaces";
+// import {getHighestFromArr} from "./helpers";
+
+const updateMessagesFromDb = async (messages: Array<Message>) => {
+    console.log("Getting messages from database...");
+    const rows = await knex.from("messages").select("*");
+    for (const message of rows) {
+        const messageUser: User = {
+            username: "DeletedUser",
+            usernum: 9999,
+            currentChannel: 0,
+            id: 0,
+            messages: [],
+        };
+        const newMessage: Message = {
+            user: messageUser,
+            utcTime: message.date,
+            message: message.message,
+            channel: message.channel,
+            id: message.id
+        };
+        messages.push(newMessage);
+    }
+};
+
+const updateChannelsFromDb = async (channels: Object) => {
+    console.log("Getting channels from database...");
+    try {
+        const rows = await knex.from("channels").select("*");
+        for (const channel of rows) {
+            // console.log(channel);
+            channels[channel.id] = {
+                name: channel.name,
+                id: channel.id,
+                messages: channel.messages
+            };
+        }
+    } catch (err) {
+        console.error(err);
+        throw err;
+    }
+};
+
+const deleteOldUsers = (sNum) => {
+    console.log(sNum + ": Deleting old users...");
+    try {
+        knex.raw('delete from users where snum <= ' + sNum + ";")
+            .catch(err => {
+                console.error(err);
+                throw err;
+            });
+        console.log("Users deleted.");
+    } catch (err) {
+        console.error(err);
+        throw err;
+    }
+};
+
+const incrementSNum = async () => {
+    const rows = await knex("serverid");
+    const sNum = rows[0].snum;
+    try {
+        await knex("serverid").update({snum: Number(Number(sNum) + 1)});
+    } catch (err) {
+        console.error(err);
+        throw err;
+    }
+    return sNum;
+};
+
+const getHighestId = async (): Promise<number> => {
+    interface idRet {
+        id: number
+    }
+    const ids: Array<idRet> = await knex("messages").select("id");
+    const arrIds = Array.from(ids, l => l.id);
+    if (arrIds.length === 0) {
+        return 0;
+    } else {
+        return Math.max(...arrIds) + 1 as number;
+    }
+};
+
+const init = async (messages: Array<Message>, channels: Object) => {
+    console.log("Initializing...");
+    const sNum = await incrementSNum();
+    await deleteOldUsers(sNum);
+    await updateMessagesFromDb(messages);
+    await updateChannelsFromDb(channels);
+};
+
+export {init, getHighestId};
