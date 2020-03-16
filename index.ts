@@ -11,7 +11,7 @@ const {Server} = require('ws');
 
 import {knex} from './knex';
 import {User, Message, Channel} from './interfaces';
-// import {getHighestFromArr} from "./helpers";
+import {checkUser} from "./helpers";
 import {init, getHighestId} from './init';
 import {editMessage} from "./wss";
 
@@ -21,8 +21,6 @@ let highestChannelId = 0;
 let users = {};
 let channels = {};
 let highestId = 0;
-
-const checkUser = (checkedUser: User, users: Object) => Object.entries(users).some(l => l[1].id === checkedUser.id);
 
 const sendToClients = (category, data) => {
     wss.clients.forEach(function each(ws) {
@@ -70,8 +68,7 @@ wss.on('connection', function connection(ws) {
                     });
 
                 msgInfo.user.messages.push(msgInfo.id);
-                const isUserAuth = checkUser(msgInfo.user, users);
-                if (isUserAuth === true) {
+                if (checkUser(msgInfo.user, users)) {
                     messages.push(msgInfo);
                     console.log(msgInfo);
                     sendToClients("message", msgInfo);
