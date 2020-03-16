@@ -6,23 +6,14 @@ const http = require('http').Server(app);
 const moment = require('moment');
 const port = process.env.PORT || 5000;
 
-const knex = require('knex')({
-    client: 'pg',
-    version: '7.2',
-    connection: {
-        host: process.env.HOST,
-        user: process.env.USER,
-        password: process.env.PASSWORD,
-        database: process.env.DATABASE,
-        ssl: true
-    }
-});
 const {setWsHeartbeat} = require("ws-heartbeat/server");
 const {Server} = require('ws');
 
+import {knex} from './knex';
 import {User, Message, Channel} from './interfaces';
 // import {getHighestFromArr} from "./helpers";
 import {init, getHighestId} from './init';
+import {editMessage} from "./wss";
 
 let messages: Array<Message> = [];
 let highestUserId = 0;
@@ -31,7 +22,7 @@ let users = {};
 let channels = {};
 let highestId = 0;
 
-const checkUser = (checkedUser: User, users: Object) => Object.entries(users).some( l => l[1].id === checkedUser.id);
+const checkUser = (checkedUser: User, users: Object) => Object.entries(users).some(l => l[1].id === checkedUser.id);
 
 const sendToClients = (category, data) => {
     wss.clients.forEach(function each(ws) {
@@ -88,27 +79,20 @@ wss.on('connection', function connection(ws) {
                 }
             }
             if (category === "editMessage") {
-                for (const i in messages) {
-                    if (messages[i].id === message.id) {
-                        messages[i].message = message.msg;
-                    }
-                }
+                editMessage(messages, message);
                 sendToClients("editMessage", message);
             }
             if (category === "deleteMessage") {
-                for (const i in messages) {
-                    if (messages[i].id === message) {
-                        knex("messages")
-                            .where({id: message})
-                            .del()
-                            .catch((err) => {
-                                console.error(err);
-                                throw err;
-                            });
-                        messages.splice(+i, 1);
-                        sendToClients("deleteMessage", +i);
-                    }
-                }
+                const selectedMessage = messages.findIndex(l => l.id === message);
+                knex("messages")
+                    .where({id: message})
+                    .del()
+                    .catch((err) => {
+                        console.error(err);
+                        throw err;
+                    });
+                messages.splice(selectedMessage, 1);
+                sendToClients("deleteMessage", selectedMessage);
             }
             if (category === "queryMessages") {
                 sendToClients("messageList", messages);
@@ -143,10 +127,7 @@ wss.on('connection', function connection(ws) {
                 const arrayClients = Array.from(wss.clients);
                 // @ts-ignore
                 const arrayUsers: Array<User> = Array.from(arrayClients, x => x.userDetails).filter(l => l != null);
-                users = arrayUsers.reduce((acc, elem) => {
-                    acc[elem.id] = elem;
-                    return acc;
-                }, {});
+                users = arrayUsers.reduce((acc, elem) => {acc[elem.id] = elem;return acc;}, {});
                 ws.send(JSON.stringify(["bestowId", theUser.id]));
                 sendToClients("newUser", users);
             }

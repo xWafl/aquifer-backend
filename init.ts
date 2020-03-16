@@ -1,14 +1,4 @@
-const knex = require('knex')({
-    client: 'pg',
-    version: '7.2',
-    connection: {
-        host: process.env.HOST,
-        user: process.env.USER,
-        password: process.env.PASSWORD,
-        database: process.env.DATABASE,
-        ssl: true
-    }
-});
+import {knex} from './knex';
 
 import {User, Message} from "./interfaces";
 // import {getHighestFromArr} from "./helpers";
