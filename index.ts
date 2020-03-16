@@ -4,7 +4,7 @@ declare var process: any;
 const app = require('express')();
 const http = require('http').Server(app);
 const moment = require('moment');
-const port = process.env.PORT || 5000;
+const port = process.env.PORT ?? 5000;
 
 const {setWsHeartbeat} = require("ws-heartbeat/server");
 const {Server} = require('ws');
