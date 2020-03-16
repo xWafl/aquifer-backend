@@ -1,31 +1,10 @@
 declare var require: any;
 declare var process: any;
 
-// const firebase = require("firebase/app");
-
 const app = require('express')();
 const http = require('http').Server(app);
 const moment = require('moment');
 const port = process.env.PORT || 5000;
-
-const {Client} = require('pg');
-
-const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false
-    },
-    user: process.env.USER,
-    password: process.env.PASSWORD,
-    host: process.env.HOST,
-    database: process.env.DATABASE,
-});
-
-client.connect()
-    .catch((err) => {
-        console.error(err);
-        client.end();
-    });
 
 const knex = require('knex')({
     client: 'pg',
