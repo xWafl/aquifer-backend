@@ -55,7 +55,6 @@ wss.on('connection', function connection(ws) {
                     id: highestId
                 })
                     .catch((err) => {
-                        console.error(err);
                         throw err;
                     });
                 channels[msgInfo.channel].messages.push(msgInfo.id);
@@ -63,7 +62,6 @@ wss.on('connection', function connection(ws) {
                     .where({id: msgInfo.channel})
                     .update({messages: knex.raw('array_append(messages, ?)', [msgInfo.id])})
                     .catch((err) => {
-                        console.error(err);
                         throw err;
                     });
 
@@ -72,7 +70,6 @@ wss.on('connection', function connection(ws) {
                     messages.push(msgInfo);
                     console.log(msgInfo);
                     sendToClients("message", msgInfo);
-                    // console.log(msgInfo.user.messages);
                 }
             }
             if (category === "editMessage") {
@@ -85,7 +82,6 @@ wss.on('connection', function connection(ws) {
                     .where({id: message})
                     .del()
                     .catch((err) => {
-                        console.error(err);
                         throw err;
                     });
                 messages.splice(selectedMessage, 1);
@@ -117,7 +113,6 @@ wss.on('connection', function connection(ws) {
                 knex("users")
                     .insert(queryDetails)
                     .catch((err) => {
-                        console.error(err);
                         throw err;
                     });
                 ws.userDetails = theUser;
@@ -135,14 +130,12 @@ wss.on('connection', function connection(ws) {
                     .where({id: message.id})
                     .del()
                     .catch((err) => {
-                        console.error(err);
                         throw err;
                     });
                 knex("messages")
                     .where({userid: message.id})
                     .update({userid: 0})
                     .catch((err) => {
-                        console.error(err);
                         throw err;
                     });
                 sendToClients("loseUser", users);
@@ -158,7 +151,6 @@ wss.on('connection', function connection(ws) {
                 knex("channels")
                     .insert({name: newChannel.name, id: newChannel.id, messages: []})
                     .catch((err) => {
-                        console.error(err);
                         throw err;
                     });
                 sendToClients("newChannel", channels);
@@ -169,14 +161,12 @@ wss.on('connection', function connection(ws) {
                     .where({id: message})
                     .del()
                     .catch(err => {
-                        console.error(err);
                         throw err;
                     });
                 knex("messages")
                     .where({channel: message})
                     .del()
                     .catch(err => {
-                        console.error(err);
                         throw err;
                     });
                 sendToClients("deleteChannel", channels);

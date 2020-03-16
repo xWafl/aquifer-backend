@@ -1,7 +1,6 @@
 import {knex} from './knex';
 
 import {User, Message} from "./interfaces";
-// import {getHighestFromArr} from "./helpers";
 
 const updateMessagesFromDb = async (messages: Array<Message>) => {
     console.log("Getting messages from database...");
@@ -30,7 +29,6 @@ const updateChannelsFromDb = async (channels: Object) => {
     try {
         const rows = await knex.from("channels").select("*");
         for (const channel of rows) {
-            // console.log(channel);
             channels[channel.id] = {
                 name: channel.name,
                 id: channel.id,
