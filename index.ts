@@ -35,6 +35,10 @@ const server = http.listen(port, async (err) => {
     highestId = await getHighestId();
 });
 
+process.on('uncaughtException', function (err) {
+    console.log(err);
+});
+
 const wss = new Server({server});
 
 wss.on('connection', function connection(ws) {
