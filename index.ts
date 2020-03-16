@@ -77,40 +77,34 @@ wss.on('connection', function connection(ws) {
             const [category, message] = JSON.parse(data);
             if (category === "message") {
                 const msgInfo = message;
-                const newMessage: Message = {
-                    user: msgInfo.user,
-                    utcTime: moment().valueOf(),
+                msgInfo.utcTime = moment().valueOf();
+                msgInfo.id = ++highestId;
+                knex("messages").insert({
+                    userid: msgInfo.user.id,
+                    utctime: moment().valueOf(),
                     message: msgInfo.message,
                     channel: msgInfo.channel,
-                    id: ++highestId
-                };
-                const queryMessage = {
-                    userid: newMessage.user.id,
-                    date: newMessage.utcTime,
-                    message: newMessage.message,
-                    channel: newMessage.channel,
-                    id: newMessage.id
-                };
-                console.log(queryMessage);
-                knex("messages").insert(queryMessage)
+                    id: highestId
+                })
                     .catch((err) => {
                         console.error(err);
                         throw err;
                     });
-                channels[newMessage.channel].messages.push(newMessage.id);
+                channels[msgInfo.channel].messages.push(msgInfo.id);
                 knex("channels")
-                    .where({id: newMessage.channel})
-                    .update({messages: knex.raw('array_append(messages, ?)', [newMessage.id])})
+                    .where({id: msgInfo.channel})
+                    .update({messages: knex.raw('array_append(messages, ?)', [msgInfo.id])})
                     .catch((err) => {
                         console.error(err);
                         throw err;
                     });
 
-                msgInfo.user.messages.push(newMessage.id);
+                msgInfo.user.messages.push(msgInfo.id);
                 const isUserAuth = checkUser(msgInfo.user, users);
                 if (isUserAuth === true) {
-                    messages.push(newMessage);
-                    sendToClients("message", newMessage);
+                    messages.push(msgInfo);
+                    console.log(msgInfo);
+                    sendToClients("message", msgInfo);
                     // console.log(msgInfo.user.messages);
                 }
             }
@@ -120,8 +114,7 @@ wss.on('connection', function connection(ws) {
                         messages[i].message = message.msg;
                     }
                 }
-                const newMessage = {...message};
-                sendToClients("editMessage", newMessage);
+                sendToClients("editMessage", message);
             }
             if (category === "deleteMessage") {
                 for (const i in messages) {

@@ -26,7 +26,7 @@ const updateMessagesFromDb = async (messages: Array<Message>) => {
         };
         const newMessage: Message = {
             user: messageUser,
-            utcTime: message.date,
+            utcTime: message.utctime,
             message: message.message,
             channel: message.channel,
             id: message.id
