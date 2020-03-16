@@ -78,11 +78,15 @@ const getHighestId = async (): Promise<number> => {
 };
 
 const init = async (messages: Array<Message>, channels: Object) => {
-    console.log("Initializing...");
-    const sNum = await incrementSNum();
-    await deleteOldUsers(sNum);
-    await updateMessagesFromDb(messages);
-    await updateChannelsFromDb(channels);
+    try {
+        console.log("Initializing...");
+        const sNum = await incrementSNum();
+        await deleteOldUsers(sNum);
+        await updateMessagesFromDb(messages);
+        await updateChannelsFromDb(channels);
+    } catch (e) {
+        throw e;
+    }
 };
 
 export {init, getHighestId};
