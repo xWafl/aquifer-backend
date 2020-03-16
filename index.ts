@@ -9,7 +9,7 @@ const port = process.env.PORT ?? 5000;
 const {setWsHeartbeat} = require("ws-heartbeat/server");
 const {Server} = require('ws');
 
-import {knex} from './knex';
+const knex = require('./knex');
 import {User, Message, Channel} from './interfaces';
 import {checkUser} from "./helpers";
 import {init, getHighestId} from './init';

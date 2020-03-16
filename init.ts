@@ -1,4 +1,4 @@
-import {knex} from './knex';
+const knex = require('./knex');
 
 import {User, Message} from "./interfaces";
 
@@ -54,6 +54,7 @@ const deleteOldUsers = (sNum) => {
 };
 
 const incrementSNum = async () => {
+    console.log("Incrementing server num...");
     const rows = await knex("serverid");
     const sNum = rows[0].snum;
     try {
