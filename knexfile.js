@@ -9,9 +9,10 @@ module.exports = {
         client: 'pg',
         connection: {
             host : process.env.HOST,
-            user : process.env.USERNAME,
+            user : process.env.USER,
             password : process.env.PASSWORD,
             database : process.env.DATABASE,
+            ssl: true,
             charset: 'utf8'
         },
         migrations: {
@@ -46,10 +47,10 @@ module.exports = {
         //     password: process.env.PASSWORD,
         // },
         connection: process.env.DATABASE_URL,
+        ssl: true
         migrations: {
             tableName: 'knex_migrations'
         }
     },
-    ssl: true,
     debug: true,
 };

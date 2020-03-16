@@ -54,23 +54,27 @@ const deleteOldUsers = (sNum) => {
 };
 
 const incrementSNum = async () => {
-    console.log("Incrementing server num...");
-    const rows = await knex("serverid");
-    const sNum = rows[0].snum;
     try {
+        console.log("Incrementing server num...");
+        const rows = await knex("serverid")
+            .catch(e => {
+                throw e;
+            });
+        const sNum = rows[0].snum;
         await knex("serverid").update({snum: Number(Number(sNum) + 1)});
+        return sNum;
     } catch (err) {
         throw err;
     }
-    return sNum;
 };
 
 const getHighestId = async (): Promise<number> => {
     interface idRet {
         id: number
     }
+
     const ids: Array<idRet> = await knex("messages").select("id");
-    const arrIds = ids.map(({ id }) => id);
+    const arrIds = ids.map(({id}) => id);
     if (arrIds.length === 0) {
         return 0;
     } else {
