@@ -41,13 +41,14 @@ module.exports = {
 
     production: {
         client: 'pg',
-        // connection: {
-        //     database: process.env.DATABASE,
-        //     user: process.env.USERNAME,
-        //     password: process.env.PASSWORD,
-        // },
-        connection: process.env.DATABASE_URL,
-        ssl: true
+        connection: {
+            host : process.env.HOST,
+            user : process.env.USER,
+            password : process.env.PASSWORD,
+            database : process.env.DATABASE,
+            ssl: true,
+            charset: 'utf8'
+        },
         migrations: {
             tableName: 'knex_migrations'
         }
