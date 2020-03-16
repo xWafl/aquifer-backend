@@ -36,7 +36,6 @@ const updateChannelsFromDb = async (channels: Object) => {
             };
         }
     } catch (err) {
-        console.error(err);
         throw err;
     }
 };
@@ -46,12 +45,10 @@ const deleteOldUsers = (sNum) => {
     try {
         knex.raw('delete from users where snum <= ' + sNum + ";")
             .catch(err => {
-                console.error(err);
                 throw err;
             });
         console.log("Users deleted.");
     } catch (err) {
-        console.error(err);
         throw err;
     }
 };
@@ -62,7 +59,6 @@ const incrementSNum = async () => {
     try {
         await knex("serverid").update({snum: Number(Number(sNum) + 1)});
     } catch (err) {
-        console.error(err);
         throw err;
     }
     return sNum;

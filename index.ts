@@ -33,7 +33,6 @@ const server = http.listen(port, async (err) => {
     console.log("HTTP server listening on: " + port);
     init(messages, channels);
     highestId = await getHighestId();
-    console.log(`Highest: ${highestId}`);
 });
 
 const wss = new Server({server});
@@ -68,7 +67,6 @@ wss.on('connection', function connection(ws) {
                 msgInfo.user.messages.push(msgInfo.id);
                 if (checkUser(msgInfo.user, users)) {
                     messages.push(msgInfo);
-                    console.log(msgInfo);
                     sendToClients("message", msgInfo);
                 }
             }
