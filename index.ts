@@ -96,7 +96,7 @@ wss.on('connection', function connection(ws) {
                 sendToClients("channelList", channels);
             }
             if (category === "newUser") {
-                const rows = await knex("serverid");
+                const rows = await knex("serverid").catch(e => {throw e});
                 const sNum = rows[0].snum;
                 const theUser: User = {
                     username: message.username,
