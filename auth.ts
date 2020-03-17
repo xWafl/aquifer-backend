@@ -45,7 +45,15 @@ app.post("/createUser", async (req, res) => {
         const arrIds: Array<number> = Array.from(ids, l => l.id);
         const highestId = ids.length === 0 ? 0 : Math.max(...arrIds) + 1;
         knex("accounts")
-            .insert({username: username, password: hashedPw, seshkey: null, id: highestId, usernum: genDiscriminator()})
+            .insert({
+                username: username,
+                password: hashedPw,
+                seshkey: null,
+                id: highestId,
+                usernum: genDiscriminator(),
+                currentchannel: 0,
+                messages: [],
+            })
             .catch(err => {
                 throw err;
             });
@@ -54,7 +62,6 @@ app.post("/createUser", async (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-    console.log(req.body);
     const username = req.body.username;
     const password = req.body.password;
     const users = await knex("accounts")
@@ -63,6 +70,10 @@ app.post("/login", async (req, res) => {
         .catch(err => {
             throw err;
         });
+    console.log(users[0]);
+    const usernum = users[0].usernum;
+    const currentchannel = users[0].currentchannel;
+    const messages = users[0].messages;
     const passwordMatches = bcrypt.compareSync(password, users[0].password);
     if (passwordMatches === true) {
         const newSK = genSeshkey();
@@ -72,9 +83,15 @@ app.post("/login", async (req, res) => {
             .catch(err => {
                 throw err;
             });
-        res.send(newSK);
+        res.send({
+            status: "success",
+            seshkey: newSK,
+            usernum: usernum,
+            currentchannel: currentchannel,
+            messages: messages
+        });
     } else {
-        res.send("failure");
+        res.send({status: "failure"});
     }
 });
 
@@ -82,9 +99,17 @@ app.post("/loginFromSeshkey", async (req, res) => {
     const givenId = req.body.seshkey;
     const matchingSK = await knex("accounts").where({seshkey: givenId}).select("*");
     if (matchingSK.length > 0) {
-        res.send(true);
+        const currentChannel = matchingSK[0].currentchannel;
+        const messages = matchingSK[0].messages;
+        res.send({
+            status: "success",
+            currentchannel: currentChannel,
+            messages: messages
+        });
     } else {
-        res.send(false);
+        res.send({
+            status: "failure"
+        });
     }
 });
 
