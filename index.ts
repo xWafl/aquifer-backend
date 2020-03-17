@@ -1,15 +1,17 @@
 declare var require: any;
 declare var process: any;
 
-const app = require('express')();
-const http = require('http').Server(app);
+const http = require('http').Server();
 const moment = require('moment');
-const port = 5000;
+const wsPort = process.env.PORT ?? 5000;
+
+// app.listen(wsPort);
 
 const {setWsHeartbeat} = require("ws-heartbeat/server");
 const {Server} = require('ws');
 
 const knex = require('./knex');
+
 import {User, Message, Channel} from './interfaces';
 import {checkUser} from "./helpers";
 import {init, getHighestId} from './init';
@@ -28,9 +30,13 @@ const sendToClients = (category, data) => {
     })
 };
 
-const server = http.listen(port, async (err) => {
+const app = require("./auth");
+
+http.on("request", app);
+
+const server = http.listen(wsPort, async (err) => {
     if (err) throw err;
-    console.log("HTTP server listening on: " + port);
+    console.log("HTTP server listening on: " + wsPort);
     init(messages, channels);
     highestId = await getHighestId();
 });
