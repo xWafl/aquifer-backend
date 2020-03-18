@@ -74,32 +74,36 @@ app.post("/login", async (req, res) => {
         .catch(err => {
             throw err;
         });
-    const currentchannel = users[0].currentchannel;
-    const messages = users[0].messages;
-    const passwordMatches = bcrypt.compareSync(password, users[0].password);
-    if (passwordMatches === true) {
-        const newSK = genSeshkey();
-         knex("accounts")
-            .where({username: username})
-            .update({seshkey: newSK})
-            .catch(err => {
-                throw err;
-            });
-        knex("accounts")
-            .where({seshkey: users[0].id})
-            .update({status: "offline"})
-            .catch(e => {
-                throw e
-            });
-        res.send({
-            status: "success",
-            seshkey: newSK,
-            usernum: usernum,
-            currentchannel: currentchannel,
-            messages: messages
-        });
-    } else {
+    if (users.length === 0) {
         res.send({status: "failure"});
+    } else {
+        const currentchannel = users[0].currentchannel;
+        const messages = users[0].messages;
+        const passwordMatches = bcrypt.compareSync(password, users[0].password);
+        if (passwordMatches === true) {
+            const newSK = genSeshkey();
+            knex("accounts")
+                .where({username: username})
+                .update({seshkey: newSK})
+                .catch(err => {
+                    throw err;
+                });
+            knex("accounts")
+                .where({seshkey: users[0].id})
+                .update({status: "offline"})
+                .catch(e => {
+                    throw e
+                });
+            res.send({
+                status: "success",
+                seshkey: newSK,
+                usernum: usernum,
+                currentchannel: currentchannel,
+                messages: messages
+            });
+        } else {
+            res.send({status: "failure"});
+        }
     }
 });
 
@@ -152,7 +156,7 @@ app.post("/logout", async (req, res) => {
 app.get("/userPower/:username/:usernum", async (req, res) => {
     const username = req.params.username;
     const usernum = req.params.usernum;
-    const users = await knex("accounts").where({username: username, usernum: usernum}).select("*").catch(e => {throw e});
+    const users = await knex("accounts").where({username: username, usernum: Number(usernum)}).select("*").catch(e => {throw e});
     if (users.length > 0) {
         res.send(users[0].power);
     } else {

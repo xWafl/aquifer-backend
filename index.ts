@@ -140,10 +140,8 @@ wss.on('connection', function connection(ws) {
                         .catch(e => {
                             throw e;
                         });
-
                     let theUser: User;
-
-                    if (account) {
+                    if (account.length > 0) {
                         theUser = {
                             username: account[0].username,
                             usernum: account[0].usernum,

@@ -6,12 +6,13 @@ const updateMessagesFromDb = async (messages: Array<Message>) => {
     console.log("Getting messages from database...");
     const rows = await knex.from("messages").select("*").catch(e => {throw e});
     for (const message of rows) {
+        const user = await knex.from("accounts").where({id: message.userid}).select("*").catch(e => {throw e});
         const messageUser: User = {
-            username: "DeletedUser",
-            usernum: 9999,
-            currentChannel: 0,
-            id: 0,
-            messages: [],
+            username: user[0].username,
+            usernum: user[0].usernum,
+            currentChannel: user[0].currentchannel,
+            id: user[0].id,
+            messages: user[0].messages,
         };
         const newMessage: Message = {
             user: messageUser,
