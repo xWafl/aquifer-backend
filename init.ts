@@ -4,9 +4,13 @@ import {User, Message} from "./interfaces";
 
 const updateMessagesFromDb = async (messages: Array<Message>) => {
     console.log("Getting messages from database...");
-    const rows = await knex.from("messages").select("*").catch(e => {throw e});
+    const rows = await knex.from("messages").select("*").catch(e => {
+        throw e
+    });
     for (const message of rows) {
-        const user = await knex.from("accounts").where({id: message.userid}).select("*").catch(e => {throw e});
+        const user = await knex.from("accounts").where({id: message.userid}).select("*").catch(e => {
+            throw e
+        });
         const messageUser: User = {
             username: user[0].username,
             usernum: user[0].usernum,
@@ -28,7 +32,9 @@ const updateMessagesFromDb = async (messages: Array<Message>) => {
 const updateChannelsFromDb = async (channels: Object) => {
     console.log("Getting channels from database...");
     try {
-        const rows = await knex.from("channels").select("*").catch(e => {throw e});
+        const rows = await knex.from("channels").select("*").catch(e => {
+            throw e
+        });
         for (const channel of rows) {
             channels[channel.id] = {
                 name: channel.name,
@@ -62,7 +68,9 @@ const incrementSNum = async () => {
                 throw e;
             });
         const sNum = rows[0].snum;
-        await knex("serverid").update({snum: Number(Number(sNum) + 1)}).catch(e => {throw e});
+        await knex("serverid").update({snum: Number(Number(sNum) + 1)}).catch(e => {
+            throw e
+        });
         return sNum;
     } catch (err) {
         throw err;
@@ -74,7 +82,9 @@ const getHighestId = async (): Promise<number> => {
         id: number
     }
 
-    const ids: Array<idRet> = await knex("messages").select("id").catch(e => {throw e});
+    const ids: Array<idRet> = await knex("messages").select("id").catch(e => {
+        throw e
+    });
     const arrIds = ids.map(({id}) => id);
     if (arrIds.length === 0) {
         return 0;
@@ -82,6 +92,21 @@ const getHighestId = async (): Promise<number> => {
         return Math.max(...arrIds) + 1 as number;
     }
 };
+
+const getHighestChannel = async (): Promise<number> => {
+    interface idRet {
+        id: number
+    }
+
+    const ids: Array<idRet> = await knex("channels").select("id").catch(e => {throw e});
+    const arrIds = ids.map(({id}) => id);
+    if (arrIds.length === 0) {
+        return 0;
+    } else {
+        return Math.max(...arrIds) + 1 as number;
+    }
+};
+
 
 const init = async (messages: Array<Message>, channels: Object) => {
     try {
@@ -95,4 +120,4 @@ const init = async (messages: Array<Message>, channels: Object) => {
     }
 };
 
-export {init, getHighestId};
+export {init, getHighestId, getHighestChannel};

@@ -14,7 +14,7 @@ const knex = require('./knex');
 
 import {User, Message, Channel} from './interfaces';
 import {checkUser} from "./helpers";
-import {init, getHighestId} from './init';
+import {init, getHighestId, getHighestChannel} from './init';
 import {editMessage} from "./wss";
 
 let messages: Array<Message> = [];
@@ -55,6 +55,7 @@ const server = http.listen(wsPort, async (err) => {
     console.log("HTTP server listening on: " + wsPort);
     init(messages, channels);
     highestId = await getHighestId();
+    highestChannelId = await getHighestChannel();
 });
 
 process.on('uncaughtException', function (err) {
@@ -69,9 +70,7 @@ wss.on('connection', function connection(ws) {
         if (data !== '{"kind":"ping"}') {
             const [category, seshkey, message] = JSON.parse(data);
             if (category === "message") {
-                console.log("New message");
                 const userInfo = await getInfoBySeshkey(seshkey);
-                console.log(userInfo);
                 let msgInfo: Message = {
                     user: userInfo,
                     utcTime: moment().valueOf(),
@@ -79,13 +78,14 @@ wss.on('connection', function connection(ws) {
                     channel: message.channel,
                     message: message.message
                 };
-                knex("messages").insert({
-                    userid: msgInfo.user.id,
-                    utctime: moment().valueOf(),
-                    message: msgInfo.message,
-                    channel: msgInfo.channel,
-                    id: highestId
-                })
+                knex("messages")
+                    .insert({
+                        userid: msgInfo.user.id,
+                        utctime: moment().valueOf(),
+                        message: msgInfo.message,
+                        channel: msgInfo.channel,
+                        id: highestId
+                    })
                     .catch((err) => {
                         throw err;
                     });
