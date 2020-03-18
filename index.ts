@@ -178,6 +178,12 @@ wss.on('connection', function connection(ws) {
                         id: account[0].id,
                         messages: account[0].messages
                     };
+                    knex("accounts")
+                        .where({seshkey: seshkey})
+                        .update({status: "offline"})
+                        .catch(e => {
+                            throw e;
+                        });
                     delete users[theUser.id];
                     sendToClients("loseUser", theUser.id);
                 }
