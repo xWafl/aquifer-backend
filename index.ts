@@ -96,7 +96,12 @@ wss.on('connection', function connection(ws) {
                     .catch((err) => {
                         throw err;
                     });
-
+                knex("accounts")
+                    .where({seshkey: seshkey})
+                    .update({messages: knex.raw('array_append(messages, ?)', [msgInfo.id])})
+                    .catch(err => {
+                        throw err;
+                    });
                 msgInfo.user.messages.push(msgInfo.id);
                 if (checkUser(msgInfo.user, users)) {
                     messages.push(msgInfo);
@@ -113,6 +118,12 @@ wss.on('connection', function connection(ws) {
                 knex("messages")
                     .where({id: message})
                     .del()
+                    .catch((err) => {
+                        throw err;
+                    });
+                knex("accounts")
+                    .where({seshkey: seshkey})
+                    .update({messages: knex.raw('array_remove(messages, ?)', message)})
                     .catch((err) => {
                         throw err;
                     });
@@ -211,7 +222,19 @@ wss.on('connection', function connection(ws) {
                     .catch(err => {
                         throw err;
                     });
-                knex("messages")
+                const deletedMessages: Array<Record<string, any>> = await knex("messages")
+                    .where({channel: message})
+                    .select("*")
+                    .catch(err => {
+                        throw err;
+                    });
+                console.log(Array.from(deletedMessages, l => l.id));
+                knex("accounts")
+                    .update({messages: knex.raw('array_remove(messages, ?)', Array.from(deletedMessages, l => l.id))})
+                    .catch(err => {
+                        throw err;
+                    });
+                await knex("messages")
                     .where({channel: message})
                     .del()
                     .catch(err => {
