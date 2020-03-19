@@ -228,11 +228,14 @@ wss.on('connection', function connection(ws) {
                     .catch(err => {
                         throw err;
                     });
-                knex("accounts")
-                    .update({messages: knex.raw('array_remove(messages, ?)', Array.from(deletedMessages, l => l.id))})
-                    .catch(err => {
-                        throw err;
-                    });
+                const deleteIds = Array.from(deletedMessages, l => Number(l.id));
+                for (const id of deleteIds) {
+                    knex("accounts")
+                        .update({messages: knex.raw('array_remove(messages, ?)', id)})
+                        .catch(err => {
+                            throw err;
+                        });
+                }
                 await knex("messages")
                     .where({channel: message})
                     .del()
