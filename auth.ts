@@ -112,6 +112,7 @@ app.post("/loginFromSeshkey", async (req, res) => {
     const matchingSK = await knex("accounts").where({seshkey: givenId}).select("*");
     if (matchingSK.length > 0) {
         const currentChannel = matchingSK[0].currentchannel;
+        const currentServer = matchingSK[0].currentserver;
         const messages = matchingSK[0].messages;
         knex("accounts")
             .where({seshkey: givenId})
@@ -122,6 +123,7 @@ app.post("/loginFromSeshkey", async (req, res) => {
         res.send({
             status: "success",
             currentchannel: currentChannel,
+            currentserver: currentServer,
             messages: messages
         });
     } else {

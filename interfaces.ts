@@ -17,7 +17,8 @@ interface Message {
 interface Channel {
     name: string,
     id: number,
-    messages: Array<number>
+    messages: Array<number>,
+    server: number
 }
 
 export {User, Message, Channel}

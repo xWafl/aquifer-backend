@@ -21,6 +21,7 @@ let messages: Array<Message> = [];
 let highestChannelId = 0;
 let users = {};
 let channels = {};
+let servers = {};
 let highestId = 0;
 
 const sendToClients = (category, data) => {
@@ -53,7 +54,7 @@ http.on("request", app);
 const server = http.listen(wsPort, async (err) => {
     if (err) throw err;
     console.log("HTTP server listening on: " + wsPort);
-    init(messages, channels);
+    init(messages, channels, servers);
     highestId = await getHighestId();
     highestChannelId = await getHighestChannel();
 });
@@ -131,10 +132,13 @@ wss.on('connection', function connection(ws) {
                 sendToClients("deleteMessage", selectedMessage);
             }
             if (category === "queryMessages") {
-                sendToClients("messageList", messages);
+                sendToClients("messageList", messages.filter(l => l.channel === message));
             }
             if (category === "queryChannels") {
                 sendToClients("channelList", channels);
+            }
+            if (category === "queryServers") {
+                sendToClients("serverList", servers);
             }
             if (category === "newUser") {
                 const isAuth = checkAuth(seshkey);
@@ -204,7 +208,8 @@ wss.on('connection', function connection(ws) {
                 const newChannel: Channel = {
                     name: message.name,
                     id: channelId,
-                    messages: []
+                    messages: [],
+                    server: 1
                 };
                 channels[channelId] = newChannel;
                 knex("channels")
