@@ -175,4 +175,15 @@ app.get("/userStatus/:username/:usernum", async (req, res) => {
     }
 });
 
+app.get("/userId/:username/:usernum", async (req, res) => {
+    const username = req.params.username;
+    const usernum = req.params.usernum;
+    const users = await knex("accounts").where({username: username, usernum: Number(usernum)}).select("*").catch(e => {throw e});
+    if (users.length > 0) {
+        res.send(users[0].id.toString());
+    } else {
+        res.send("User nonexistent!");
+    }
+});
+
 module.exports = app;
