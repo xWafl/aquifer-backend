@@ -13,7 +13,7 @@ const {Server} = require('ws');
 const knex = require('./knex');
 
 import {User, Message, Channel} from './interfaces';
-import {checkUser} from "./helpers";
+import {checkUser, filterObjToArr} from "./helpers";
 import {init, getHighestId, getHighestChannel} from './init';
 import {editMessage} from "./wss";
 
@@ -135,7 +135,7 @@ wss.on('connection', function connection(ws) {
                 sendToClients("messageList", messages.filter(l => l.channel === message));
             }
             if (category === "queryChannels") {
-                sendToClients("channelList", channels);
+                sendToClients("channelList", filterObjToArr(channels, "server", message));
             }
             if (category === "queryServers") {
                 sendToClients("serverList", servers);
@@ -204,12 +204,13 @@ wss.on('connection', function connection(ws) {
                 }
             }
             if (category === "newChannel") {
+                console.log(message);
                 const channelId = ++highestChannelId;
                 const newChannel: Channel = {
                     name: message.name,
                     id: channelId,
                     messages: [],
-                    server: 1
+                    server: message.server
                 };
                 channels[channelId] = newChannel;
                 knex("channels")
@@ -217,7 +218,13 @@ wss.on('connection', function connection(ws) {
                     .catch((err) => {
                         throw err;
                     });
-                sendToClients("newChannel", channels);
+                knex("servers")
+                    .where({id: message.server})
+                    .update({messages: knex.raw('array_append(channels, ?)', [newChannel.id])})
+                    .catch((err) => {
+                        throw err;
+                    });
+                sendToClients("newChannel", filterObjToArr(channels, "server", message.server));
             }
             if (category === "deleteChannel") {
                 delete channels[message];

@@ -4,4 +4,14 @@ const getHighestFromArr = (arr: Array<number>) => arr.length ? Math.max(...arr) 
 
 const checkUser = (checkedUser: User, users: Object) => Object.entries(users).some( l => l[1].id === checkedUser.id);
 
-export {getHighestFromArr, checkUser}
+const filterObjToArr = (obj: Object, prop: any, match: any) => {
+    let newObj = [];
+    for (let i in obj) {
+        if (obj[i][prop] === match) {
+            newObj.push({...obj[i]});
+        }
+    }
+    return newObj;
+};
+
+export {getHighestFromArr, checkUser, filterObjToArr}

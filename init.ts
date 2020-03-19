@@ -40,7 +40,7 @@ const updateChannelsFromDb = async (channels: Object) => {
                 name: channel.name,
                 id: channel.id,
                 messages: channel.messages,
-                server: 1
+                server: channel.server
             };
         }
     } catch (err) {
