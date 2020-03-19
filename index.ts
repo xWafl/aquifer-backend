@@ -228,7 +228,6 @@ wss.on('connection', function connection(ws) {
                     .catch(err => {
                         throw err;
                     });
-                console.log(Array.from(deletedMessages, l => l.id));
                 knex("accounts")
                     .update({messages: knex.raw('array_remove(messages, ?)', Array.from(deletedMessages, l => l.id))})
                     .catch(err => {
