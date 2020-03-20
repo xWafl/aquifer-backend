@@ -14,7 +14,7 @@ const knex = require('./knex');
 
 import {User, Message, Channel} from './interfaces';
 import {checkUser, filterObjToArr} from "./helpers";
-import {init, getHighestId, getHighestChannel} from './init';
+import {init, getHighestId, getHighestChannel, getHighestServer} from './init';
 import {editMessage} from "./wss";
 
 let messages: Array<Message> = [];
@@ -255,6 +255,30 @@ wss.on('connection', function connection(ws) {
                         throw err;
                     });
                 sendToClients("deleteChannel", channels);
+            }
+            if (category === "newServer") {
+                const account = await knex("accounts")
+                    .where({seshkey: seshkey})
+                    .first()
+                    .catch(e => {
+                        throw e;
+                    });
+                if (account.power === "admin") {
+                    const highest = await getHighestServer();
+                    console.log("Highest:");
+                    console.log(highest);
+                    const server = {
+                        id: highest,
+                        name: message.name,
+                        users: [],
+                        channels: []
+                    };
+                    servers[server.id] = server;
+                    knex("servers")
+                        .insert(server)
+                        .catch(e => {throw e});
+                    sendToClients("newServer", server);
+                }
             }
         }
     });
