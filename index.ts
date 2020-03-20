@@ -214,13 +214,13 @@ wss.on('connection', function connection(ws) {
                 };
                 channels[channelId] = newChannel;
                 knex("channels")
-                    .insert({name: newChannel.name, id: newChannel.id, messages: []})
+                    .insert(newChannel)
                     .catch((err) => {
                         throw err;
                     });
                 knex("servers")
                     .where({id: message.server})
-                    .update({messages: knex.raw('array_append(channels, ?)', [newChannel.id])})
+                    .update({channels: knex.raw('array_append(channels, ?)', [newChannel.id])})
                     .catch((err) => {
                         throw err;
                     });

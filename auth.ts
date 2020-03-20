@@ -60,6 +60,14 @@ app.post("/createUser", async (req, res) => {
             .catch(err => {
                 throw err;
             });
+        knex("memories")
+            .insert({
+                account: highestId,
+                channel: []
+            })
+            .catch(e => {
+                throw e;
+            });
         res.send("Success");
     }
 });
