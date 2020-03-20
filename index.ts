@@ -13,7 +13,7 @@ const {Server} = require('ws');
 const knex = require('./knex');
 
 import {User, Message, Channel} from './interfaces';
-import {checkUser, filterObjToArr} from "./helpers";
+import {checkUser, deleteChannel, filterObjToArr} from "./helpers";
 import {init, getHighestId, getHighestChannel, getHighestServer} from './init';
 import {editMessage} from "./wss";
 
@@ -227,33 +227,7 @@ wss.on('connection', function connection(ws) {
                 sendToClients("newChannel", filterObjToArr(channels, "server", message.server));
             }
             if (category === "deleteChannel") {
-                delete channels[message];
-                knex("channels")
-                    .where({id: message})
-                    .del()
-                    .catch(err => {
-                        throw err;
-                    });
-                const deletedMessages: Array<Record<string, any>> = await knex("messages")
-                    .where({channel: message})
-                    .select("*")
-                    .catch(err => {
-                        throw err;
-                    });
-                const deleteIds = Array.from(deletedMessages, l => Number(l.id));
-                for (const id of deleteIds) {
-                    knex("accounts")
-                        .update({messages: knex.raw('array_remove(messages, ?)', id)})
-                        .catch(err => {
-                            throw err;
-                        });
-                }
-                await knex("messages")
-                    .where({channel: message})
-                    .del()
-                    .catch(err => {
-                        throw err;
-                    });
+                await deleteChannel(message, channels);
                 sendToClients("deleteChannel", channels);
             }
             if (category === "newServer") {
@@ -265,8 +239,6 @@ wss.on('connection', function connection(ws) {
                     });
                 if (account.power === "admin") {
                     const highest = await getHighestServer();
-                    console.log("Highest:");
-                    console.log(highest);
                     const server = {
                         id: highest,
                         name: message.name,
@@ -276,8 +248,38 @@ wss.on('connection', function connection(ws) {
                     servers[server.id] = server;
                     knex("servers")
                         .insert(server)
-                        .catch(e => {throw e});
+                        .catch(e => {
+                            throw e
+                        });
                     sendToClients("newServer", server);
+                }
+            }
+            if (category === "deleteServer") {
+                const power = await knex("accounts")
+                    .where({seshkey: seshkey})
+                    .first()
+                    .select("power")
+                    .catch(e => {
+                        throw e;
+                    });
+                if (power.power === "admin") {
+                    delete servers[message];
+                    knex("servers")
+                        .where({id: message})
+                        .del()
+                        .catch(err => {
+                            throw err;
+                        });
+                    const deletedChannels: Array<Record<string, any>> = await knex("channels")
+                        .where({server: message})
+                        .select("*")
+                        .catch(err => {
+                            throw err;
+                        });
+                    for (const channel of deletedChannels) {
+                        await deleteChannel(channel.id, channels)
+                    }
+                    sendToClients("deleteServer", servers);
                 }
             }
         }

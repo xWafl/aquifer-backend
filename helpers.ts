@@ -27,4 +27,34 @@ const getServerFromChannel = async (channelid: number) => {
     return match.server;
 };
 
-export {getHighestFromArr, checkUser, filterObjToArr, getServerFromChannel}
+const deleteChannel = async (message: number, channels: Object) => {
+    delete channels[message];
+    knex("channels")
+        .where({id: message})
+        .del()
+        .catch(err => {
+            throw err;
+        });
+    const deletedMessages: Array<Record<string, any>> = await knex("messages")
+        .where({channel: message})
+        .select("*")
+        .catch(err => {
+            throw err;
+        });
+    const deleteIds = Array.from(deletedMessages, l => Number(l.id));
+    for (const id of deleteIds) {
+        knex("accounts")
+            .update({messages: knex.raw('array_remove(messages, ?)', id)})
+            .catch(err => {
+                throw err;
+            });
+    }
+    await knex("messages")
+        .where({channel: message})
+        .del()
+        .catch(err => {
+            throw err;
+        });
+};
+
+export {getHighestFromArr, checkUser, filterObjToArr, getServerFromChannel, deleteChannel}
