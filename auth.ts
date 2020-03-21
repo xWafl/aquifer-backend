@@ -25,12 +25,10 @@ const genSeshkey = () => {
 // };
 
 app.post("/createUser", async (req, res) => {
-    const username = req.body.username;
-    const usernum = req.body.usernum;
-    const password = req.body.password;
-    const hashedPw = bcrypt.hashSync(password, 12);
+    const {username, usernum, password} = req.body;
+    const hashedPw = await bcrypt.hash(password, 12);
     const userTaken = await knex("accounts")
-        .where({username: username})
+        .where({username})
         .select("*")
         .catch(err => {
             throw err;
@@ -38,16 +36,16 @@ app.post("/createUser", async (req, res) => {
     if (userTaken.length > 0) {
         res.send("That user already exists!");
     } else {
-        const ids: Array<Record<string, number>> = await knex("accounts").select("id");
+        const ids: Record<string, number>[] = await knex("accounts").select("id").catch(e => {throw e});
         const arrIds: Array<number> = Array.from(ids, l => l.id);
         const highestId = ids.length === 0 ? 0 : Math.max(...arrIds) + 1;
         knex("accounts")
             .insert({
-                username: username,
+                username,
                 password: hashedPw,
                 seshkey: null,
                 id: highestId,
-                usernum: usernum,
+                usernum,
                 currentchannel: 0,
                 messages: [],
                 status: "offline",
@@ -69,11 +67,9 @@ app.post("/createUser", async (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-    const username = req.body.username;
-    const usernum = req.body.usernum;
-    const password = req.body.password;
+    const {username, usernum, password} = req.body;
     const users = await knex("accounts")
-        .where({username: username, usernum: usernum})
+        .where({username, usernum})
         .select("*")
         .catch(err => {
             throw err;
@@ -86,13 +82,13 @@ app.post("/login", async (req, res) => {
         const passwordMatches = bcrypt.compareSync(password, users[0].password);
         if (passwordMatches === true) {
             const newSK = genSeshkey();
-            knex("accounts")
-                .where({username: username})
+            await knex("accounts")
+                .where({username})
                 .update({seshkey: newSK})
                 .catch(err => {
                     throw err;
                 });
-            knex("accounts")
+            await knex("accounts")
                 .where({seshkey: users[0].id})
                 .update({status: "offline"})
                 .catch(e => {
@@ -101,9 +97,9 @@ app.post("/login", async (req, res) => {
             res.send({
                 status: "success",
                 seshkey: newSK,
-                usernum: usernum,
-                currentchannel: currentchannel,
-                messages: messages
+                usernum,
+                currentchannel,
+                messages
             });
         } else {
             res.send({status: "failure", desc: "Password does not match!"});
@@ -113,11 +109,11 @@ app.post("/login", async (req, res) => {
 
 app.post("/loginFromSeshkey", async (req, res) => {
     const givenId = req.body.seshkey;
-    const matchingSK = await knex("accounts").where({seshkey: givenId}).select("*");
+    const matchingSK = await knex("accounts").where({seshkey: givenId}).first();
     if (matchingSK.length > 0) {
-        const currentChannel = matchingSK[0].currentchannel;
-        const currentServer = matchingSK[0].currentserver;
-        const messages = matchingSK[0].messages;
+        const currentChannel = matchingSK.currentchannel;
+        const currentServer = matchingSK.currentserver;
+        const messages = matchingSK.messages;
         knex("accounts")
             .where({seshkey: givenId})
             .update({status: "online"})
@@ -143,15 +139,13 @@ app.post("/logout", async (req, res) => {
     if (matchingSK.length > 0) {
         knex("accounts")
             .where({seshkey: givenId})
-            .update({seshkey: null})
-            .update({status: "offline"})
+            .update({seshkey: null, status: "offline"})
             .catch(e => {
                 throw e
             });
         res.send({
             status: "success"
         });
-        // sendToClients("kickUser", {username: matchingSK[0].username, usernum: matchingSK[0].usernum});
     } else {
         res.send({
             status: "failure"
@@ -159,45 +153,21 @@ app.post("/logout", async (req, res) => {
     }
 });
 
-app.get("/userPower/:username/:usernum", async (req, res) => {
-    const username = req.params.username;
-    const usernum = req.params.usernum;
-    const users = await knex("accounts").where({username: username, usernum: Number(usernum)}).select("*").catch(e => {throw e});
-    if (users.length > 0) {
-        res.send(users[0].power);
-    } else {
-        res.send("User nonexistent!");
-    }
-});
-
-app.get("/userStatus/:username/:usernum", async (req, res) => {
-    const username = req.params.username;
-    const usernum = req.params.usernum;
-    const users = await knex("accounts").where({username: username, usernum: Number(usernum)}).select("*").catch(e => {throw e});
-    if (users.length > 0) {
-        res.send(users[0].status);
-    } else {
-        res.send("User nonexistent!");
-    }
-});
-
-app.get("/userId/:username/:usernum", async (req, res) => {
-    const username = req.params.username;
-    const usernum = req.params.usernum;
-    const users = await knex("accounts").where({username: username, usernum: Number(usernum)}).select("*").catch(e => {throw e});
-    if (users.length > 0) {
-        res.send(users[0].id.toString());
-    } else {
-        res.send("User nonexistent!");
-    }
-});
-
-app.get("/userMessageCount/:username/:usernum", async (req, res) => {
-    const username = req.params.username;
-    const usernum = req.params.usernum;
-    const users = await knex("accounts").where({username: username, usernum: Number(usernum)}).select("*").catch(e => {throw e});
-    if (users.length > 0) {
-        res.send(users[0].messages.length.toString());
+app.get("/userInfo/:query/:username/:usernum", async (req, res) => {
+    const {username, usernum, query} = req.params;
+    const user = await knex("accounts").where({username, usernum: Number(usernum)}).first().catch(e => {throw e});
+    if (user) {
+        if (query === "power") {
+            res.send(user.power);
+        } else if (query === "status") {
+            res.send(user.status);
+        } else if (query === "id") {
+            res.send(user.id.toString())
+        } else if (query === "messageCount") {
+            res.send(user.messages.length.toString());
+        } else {
+            res.send("Category nonexistent!");
+        }
     } else {
         res.send("User nonexistent!");
     }

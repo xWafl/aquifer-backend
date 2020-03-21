@@ -19,8 +19,8 @@ import {editMessage} from "./wss";
 
 let messages: Array<Message> = [];
 let highestChannelId = 0;
-let users = {};
-let channels = {};
+let users: Record<string, User> = {};
+let channels: Record<string, Channel> = {};
 let servers = {};
 let highestId = 0;
 
@@ -35,17 +35,7 @@ const checkAuth = async (seshkey: string) => {
     return matchingSK.length > 0;
 };
 
-const getInfoBySeshkey = async (seshkey: string) => {
-    const matchingSK = await knex("accounts").where({seshkey: seshkey}).select("*");
-    const user: User = {
-        username: matchingSK[0].username,
-        usernum: matchingSK[0].usernum,
-        currentChannel: matchingSK[0].currentchannel,
-        id: matchingSK[0].id,
-        messages: matchingSK[0].messages
-    };
-    return user;
-};
+const getInfoBySeshkey = async (seshkey: string) => await knex("accounts").where({seshkey: seshkey}).first();
 
 const app = require("./auth");
 
@@ -54,9 +44,11 @@ http.on("request", app);
 const server = http.listen(wsPort, async (err) => {
     if (err) throw err;
     console.log("HTTP server listening on: " + wsPort);
-    init(messages, channels, servers);
-    highestId = await getHighestId();
-    highestChannelId = await getHighestChannel();
+    await init(messages, channels, servers);
+    Promise.all([getHighestId(), getHighestChannel()])
+        .catch(e => {
+            throw e;
+        });
 });
 
 process.on('uncaughtException', function (err) {
@@ -115,14 +107,13 @@ wss.on('connection', function connection(ws) {
             }
             if (category === "deleteMessage") {
                 const selectedMessage = messages.findIndex(l => l.id === message);
-                // const user = getInfoBySeshkey(seshkey);
-                knex("messages")
+                await knex("messages")
                     .where({id: message})
                     .del()
                     .catch((err) => {
                         throw err;
                     });
-                knex("accounts")
+                await knex("accounts")
                     .where({seshkey: seshkey})
                     .update({messages: knex.raw('array_remove(messages, ?)', message)})
                     .catch((err) => {
@@ -270,15 +261,13 @@ wss.on('connection', function connection(ws) {
                         .catch(err => {
                             throw err;
                         });
-                    const deletedChannels: Array<Record<string, any>> = await knex("channels")
+                    const deletedChannels: Record<string, any>[] = await knex("channels")
                         .where({server: message})
                         .select("*")
                         .catch(err => {
                             throw err;
                         });
-                    for (const channel of deletedChannels) {
-                        await deleteChannel(channel.id, channels)
-                    }
+                    await Promise.all(deletedChannels.map(({ id }) => deleteChannel(id, channels)));
                     sendToClients("deleteServer", servers);
                 }
             }

@@ -1,3 +1,5 @@
+import {getHighestFromArr} from "./helpers";
+
 const knex = require('./knex');
 
 import {User, Message} from "./interfaces";
@@ -8,16 +10,7 @@ const updateMessagesFromDb = async (messages: Array<Message>) => {
         throw e
     });
     for (const message of rows) {
-        const user = await knex.from("accounts").where({id: message.userid}).select("*").catch(e => {
-            throw e
-        });
-        const messageUser: User = {
-            username: user[0].username,
-            usernum: user[0].usernum,
-            currentChannel: user[0].currentchannel,
-            id: user[0].id,
-            messages: user[0].messages,
-        };
+        const messageUser: User = await knex.from("accounts").where({id: message.userid}).first().select("*").catch(e => {throw e});
         const newMessage: Message = {
             user: messageUser,
             utcTime: message.utctime,
@@ -76,19 +69,11 @@ const getHighestId = async (): Promise<number> => {
         throw e
     });
     const arrIds = ids.map(({id}) => id);
-    if (arrIds.length === 0) {
-        return 0;
-    } else {
-        return Math.max(...arrIds) + 1 as number;
-    }
+    return getHighestFromArr(arrIds);
 };
 
 const getHighestChannel = async (): Promise<number> => {
-    interface idRet {
-        id: number
-    }
-
-    const ids: Array<idRet> = await knex("channels").select("id").catch(e => {throw e});
+    const ids: Record<"id", number>[] = await knex("channels").select("id").catch(e => {throw e});
     const arrIds = ids.map(({id}) => id);
     if (arrIds.length === 0) {
         return 0;
@@ -98,11 +83,7 @@ const getHighestChannel = async (): Promise<number> => {
 };
 
 const getHighestServer = async (): Promise<number> => {
-    interface idRet {
-        id: number
-    }
-
-    const ids: Array<idRet> = await knex("servers").select("id").catch(e => {throw e});
+    const ids: Record<"id", number>[] = await knex("servers").select("id").catch(e => {throw e});
     const arrIds = ids.map(({id}) => id);
     return arrIds.length === 0 ? 1 : Math.max(...arrIds) + 1 as number;
 };

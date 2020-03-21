@@ -6,14 +6,8 @@ const getHighestFromArr = (arr: Array<number>) => arr.length ? Math.max(...arr) 
 
 const checkUser = (checkedUser: User, users: Object) => Object.entries(users).some( l => l[1].id === checkedUser.id);
 
-const filterObjToArr = (obj: Object, prop: any, match: any) => {
-    let newObj = [];
-    for (let i in obj) {
-        if (obj[i][prop] === match) {
-            newObj.push({...obj[i]});
-        }
-    }
-    return newObj;
+const filterObjToArr = <T extends object, K extends keyof T[keyof T]>(obj:  T, key: K, match: T[keyof T][K]) => {
+    return Object.values(obj).filter(obj => obj[key] === match)
 };
 
 const getServerFromChannel = async (channelid: number) => {
