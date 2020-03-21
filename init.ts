@@ -104,11 +104,7 @@ const getHighestServer = async (): Promise<number> => {
 
     const ids: Array<idRet> = await knex("servers").select("id").catch(e => {throw e});
     const arrIds = ids.map(({id}) => id);
-    if (arrIds.length === 0) {
-        return 0;
-    } else {
-        return Math.max(...arrIds) + 1 as number;
-    }
+    return arrIds.length === 0 ? 1 : Math.max(...arrIds) + 1 as number;
 };
 
 const init = async (messages: Array<Message>, channels: Object, servers: Object) => {
