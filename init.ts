@@ -72,7 +72,7 @@ const getHighestId = async (): Promise<number> => {
         id: number
     }
 
-    const ids: Array<idRet> = await knex("messages").select("id").catch(e => {
+    const ids = await knex("messages").select<idRet>("id").catch(e => {
         throw e
     });
     const arrIds = ids.map(({id}) => id);
