@@ -83,7 +83,7 @@ app.post("/login", async (req, res) => {
             throw err;
         });
     if (users.length === 0) {
-        res.send({status: "failure"});
+        res.send({status: "failure", desc: "No user exists!"});
     } else {
         const currentchannel = users[0].currentchannel;
         const messages = users[0].messages;
@@ -110,7 +110,7 @@ app.post("/login", async (req, res) => {
                 messages: messages
             });
         } else {
-            res.send({status: "failure"});
+            res.send({status: "failure", desc: "Password does not match!"});
         }
     }
 });
