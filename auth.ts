@@ -110,7 +110,7 @@ app.post("/login", async (req, res) => {
 app.post("/loginFromSeshkey", async (req, res) => {
     const givenId = req.body.seshkey;
     const matchingSK = await knex("accounts").where({seshkey: givenId}).first();
-    if (matchingSK.length > 0) {
+    if (matchingSK) {
         const currentChannel = matchingSK.currentchannel;
         const currentServer = matchingSK.currentserver;
         const messages = matchingSK.messages;
