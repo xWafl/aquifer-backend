@@ -71,7 +71,7 @@ wss.on('connection', function connection(ws) {
                     channel: message.channel,
                     message: message.message
                 };
-                knex("messages")
+                await knex("messages")
                     .insert({
                         userid: msgInfo.user.id,
                         utctime: moment().valueOf(),
@@ -83,13 +83,13 @@ wss.on('connection', function connection(ws) {
                         throw err;
                     });
                 channels[msgInfo.channel].messages.push(msgInfo.id);
-                knex("channels")
+                await knex("channels")
                     .where({id: msgInfo.channel})
                     .update({messages: knex.raw('array_append(messages, ?)', [msgInfo.id])})
                     .catch((err) => {
                         throw err;
                     });
-                knex("accounts")
+                await knex("accounts")
                     .where({seshkey: seshkey})
                     .update({messages: knex.raw('array_append(messages, ?)', [msgInfo.id])})
                     .catch(err => {
@@ -184,7 +184,7 @@ wss.on('connection', function connection(ws) {
                         id: account[0].id,
                         messages: account[0].messages
                     };
-                    knex("accounts")
+                    await knex("accounts")
                         .where({seshkey: seshkey})
                         .update({status: "offline"})
                         .catch(e => {
@@ -204,12 +204,12 @@ wss.on('connection', function connection(ws) {
                     server: message.server
                 };
                 channels[channelId] = newChannel;
-                knex("channels")
+                await knex("channels")
                     .insert(newChannel)
                     .catch((err) => {
                         throw err;
                     });
-                knex("servers")
+                await knex("servers")
                     .where({id: message.server})
                     .update({channels: knex.raw('array_append(channels, ?)', [newChannel.id])})
                     .catch((err) => {
@@ -237,7 +237,7 @@ wss.on('connection', function connection(ws) {
                         channels: []
                     };
                     servers[server.id] = server;
-                    knex("servers")
+                    await knex("servers")
                         .insert(server)
                         .catch(e => {
                             throw e
@@ -255,7 +255,7 @@ wss.on('connection', function connection(ws) {
                     });
                 if (power.power === "admin") {
                     delete servers[message];
-                    knex("servers")
+                    await knex("servers")
                         .where({id: message})
                         .del()
                         .catch(err => {
