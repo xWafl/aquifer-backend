@@ -11,10 +11,6 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
 
-app.get("/", (req, res) => {
-    res.send("Hello world!");
-});
-
 const genSeshkey = () => {
     const validChars = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
     let result = "";
