@@ -1,25 +1,27 @@
 declare var require: any;
 declare var process: any;
 
-const app = require('express')();
-const http = require('http').Server(app);
+const http = require('http').Server();
 const moment = require('moment');
-const port = process.env.PORT ?? 5000;
+const wsPort = process.env.PORT ?? 5000;
+
+// app.listen(wsPort);
 
 const {setWsHeartbeat} = require("ws-heartbeat/server");
 const {Server} = require('ws');
 
 const knex = require('./knex');
+
 import {User, Message, Channel} from './interfaces';
-import {checkUser} from "./helpers";
-import {init, getHighestId} from './init';
+import {checkUser, deleteChannel, filterObjToArr} from "./helpers";
+import {init, getHighestId, getHighestChannel, getHighestServer} from './init';
 import {editMessage} from "./wss";
 
 let messages: Array<Message> = [];
-let highestUserId = 0;
 let highestChannelId = 0;
-let users = {};
-let channels = {};
+let users: Record<string, User> = {};
+let channels: Record<string, Channel> = {};
+let servers = {};
 let highestId = 0;
 
 const sendToClients = (category, data) => {
@@ -28,11 +30,25 @@ const sendToClients = (category, data) => {
     })
 };
 
-const server = http.listen(port, async (err) => {
+const checkAuth = async (seshkey: string) => {
+    const matchingSK = await knex("accounts").where({seshkey: seshkey}).select("*");
+    return matchingSK.length > 0;
+};
+
+const getInfoBySeshkey = async (seshkey: string) => await knex("accounts").where({seshkey: seshkey}).first();
+
+const app = require("./auth");
+
+http.on("request", app);
+
+const server = http.listen(wsPort, async (err) => {
     if (err) throw err;
-    console.log("HTTP server listening on: " + port);
-    init(messages, channels);
-    highestId = await getHighestId();
+    console.log("HTTP server listening on: " + wsPort);
+    await init(messages, channels, servers);
+    Promise.all([getHighestId(), getHighestChannel()])
+        .catch(e => {
+            throw e;
+        });
 });
 
 process.on('uncaughtException', function (err) {
@@ -45,29 +61,40 @@ wss.on('connection', function connection(ws) {
     ws.isAlive = true;
     ws.on('message', async (data) => {
         if (data !== '{"kind":"ping"}') {
-            const [category, message] = JSON.parse(data);
+            const [category, seshkey, message] = JSON.parse(data);
             if (category === "message") {
-                const msgInfo = message;
-                msgInfo.utcTime = moment().valueOf();
-                msgInfo.id = ++highestId;
-                knex("messages").insert({
-                    userid: msgInfo.user.id,
-                    utctime: moment().valueOf(),
-                    message: msgInfo.message,
-                    channel: msgInfo.channel,
-                    id: highestId
-                })
+                const userInfo = await getInfoBySeshkey(seshkey);
+                let msgInfo: Message = {
+                    user: userInfo,
+                    utcTime: moment().valueOf(),
+                    id: ++highestId,
+                    channel: message.channel,
+                    message: message.message
+                };
+                await knex("messages")
+                    .insert({
+                        userid: msgInfo.user.id,
+                        utctime: moment().valueOf(),
+                        message: msgInfo.message,
+                        channel: msgInfo.channel,
+                        id: highestId
+                    })
                     .catch((err) => {
                         throw err;
                     });
                 channels[msgInfo.channel].messages.push(msgInfo.id);
-                knex("channels")
+                await knex("channels")
                     .where({id: msgInfo.channel})
                     .update({messages: knex.raw('array_append(messages, ?)', [msgInfo.id])})
                     .catch((err) => {
                         throw err;
                     });
-
+                await knex("accounts")
+                    .where({seshkey: seshkey})
+                    .update({messages: knex.raw('array_append(messages, ?)', [msgInfo.id])})
+                    .catch(err => {
+                        throw err;
+                    });
                 msgInfo.user.messages.push(msgInfo.id);
                 if (checkUser(msgInfo.user, users)) {
                     messages.push(msgInfo);
@@ -80,9 +107,15 @@ wss.on('connection', function connection(ws) {
             }
             if (category === "deleteMessage") {
                 const selectedMessage = messages.findIndex(l => l.id === message);
-                knex("messages")
+                await knex("messages")
                     .where({id: message})
                     .del()
+                    .catch((err) => {
+                        throw err;
+                    });
+                await knex("accounts")
+                    .where({seshkey: seshkey})
+                    .update({messages: knex.raw('array_remove(messages, ?)', message)})
                     .catch((err) => {
                         throw err;
                     });
@@ -90,88 +123,153 @@ wss.on('connection', function connection(ws) {
                 sendToClients("deleteMessage", selectedMessage);
             }
             if (category === "queryMessages") {
-                sendToClients("messageList", messages);
+                sendToClients("messageList", messages.filter(l => l.channel === message));
             }
             if (category === "queryChannels") {
-                sendToClients("channelList", channels);
+                sendToClients("channelList", filterObjToArr(channels, "server", message));
+            }
+            if (category === "queryServers") {
+                sendToClients("serverList", servers);
             }
             if (category === "newUser") {
-                const rows = await knex("serverid").catch(e => {throw e});
-                const sNum = rows[0].snum;
-                const theUser: User = {
-                    username: message.username,
-                    usernum: message.userNum,
-                    currentChannel: 1,
-                    id: ++highestUserId,
-                    messages: message.messages
-                };
-                const queryDetails = {
-                    username: theUser.username,
-                    usernum: theUser.usernum,
-                    currentchannel: theUser.currentChannel,
-                    id: theUser.id,
-                    snum: sNum
-                };
-                knex("users")
-                    .insert(queryDetails)
-                    .catch((err) => {
-                        throw err;
-                    });
-                ws.userDetails = theUser;
-                const arrayClients = Array.from(wss.clients);
-                // @ts-ignore
-                const arrayUsers: Array<User> = Array.from(arrayClients, x => x.userDetails).filter(l => l != null);
-                users = arrayUsers.reduce((acc, elem) => {acc[elem.id] = elem;return acc;}, {});
-                ws.send(JSON.stringify(["bestowId", theUser.id]));
-                sendToClients("newUser", users);
+                const isAuth = checkAuth(seshkey);
+                if (isAuth) {
+                    await knex("accounts")
+                        .where({seshkey: seshkey})
+                        .update({status: "online"})
+                        .catch(e => {
+                            throw e;
+                        });
+                    const account = await knex("accounts")
+                        .where({seshkey: seshkey})
+                        .select("*")
+                        .catch(e => {
+                            throw e;
+                        });
+                    let theUser: User;
+                    if (account.length > 0) {
+                        theUser = {
+                            username: account[0].username,
+                            usernum: account[0].usernum,
+                            currentChannel: account[0].currentchannel,
+                            id: account[0].id,
+                            messages: account[0].messages
+                        };
+                    } else {
+                        theUser = {
+                            username: "Invalid",
+                            usernum: 9999,
+                            currentChannel: 0,
+                            id: 0,
+                            messages: []
+                        }
+                    }
+                    users[theUser.id] = theUser;
+                    sendToClients("newUser", theUser);
+                }
             }
             if (category === "loseUser") {
-                delete users[message.id];
-                delete users[ws.userId];
-                knex("users")
-                    .where({id: message.id})
-                    .del()
-                    .catch((err) => {
-                        throw err;
-                    });
-                knex("messages")
-                    .where({userid: message.id})
-                    .update({userid: 0})
-                    .catch((err) => {
-                        throw err;
-                    });
-                sendToClients("loseUser", users);
+                const isAuth = checkAuth(seshkey);
+                if (isAuth) {
+                    const account = await knex("accounts")
+                        .where({seshkey: seshkey})
+                        .select("*")
+                        .catch(e => {
+                            throw e;
+                        });
+                    const theUser: User = {
+                        username: account[0].username,
+                        usernum: account[0].usernum,
+                        currentChannel: account[0].currentchannel,
+                        id: account[0].id,
+                        messages: account[0].messages
+                    };
+                    await knex("accounts")
+                        .where({seshkey: seshkey})
+                        .update({status: "offline"})
+                        .catch(e => {
+                            throw e;
+                        });
+                    delete users[theUser.id];
+                    sendToClients("loseUser", theUser.id);
+                }
             }
             if (category === "newChannel") {
+                console.log(message);
                 const channelId = ++highestChannelId;
                 const newChannel: Channel = {
                     name: message.name,
                     id: channelId,
-                    messages: []
+                    messages: [],
+                    server: message.server
                 };
                 channels[channelId] = newChannel;
-                knex("channels")
-                    .insert({name: newChannel.name, id: newChannel.id, messages: []})
+                await knex("channels")
+                    .insert(newChannel)
                     .catch((err) => {
                         throw err;
                     });
-                sendToClients("newChannel", channels);
+                await knex("servers")
+                    .where({id: message.server})
+                    .update({channels: knex.raw('array_append(channels, ?)', [newChannel.id])})
+                    .catch((err) => {
+                        throw err;
+                    });
+                sendToClients("newChannel", filterObjToArr(channels, "server", message.server));
             }
             if (category === "deleteChannel") {
-                delete channels[message];
-                knex("channels")
-                    .where({id: message})
-                    .del()
-                    .catch(err => {
-                        throw err;
-                    });
-                knex("messages")
-                    .where({channel: message})
-                    .del()
-                    .catch(err => {
-                        throw err;
-                    });
+                await deleteChannel(message, channels);
                 sendToClients("deleteChannel", channels);
+            }
+            if (category === "newServer") {
+                const account = await knex("accounts")
+                    .where({seshkey: seshkey})
+                    .first()
+                    .catch(e => {
+                        throw e;
+                    });
+                if (account.power === "admin") {
+                    const highest = await getHighestServer();
+                    const server = {
+                        id: highest,
+                        name: message.name,
+                        users: [],
+                        channels: []
+                    };
+                    servers[server.id] = server;
+                    await knex("servers")
+                        .insert(server)
+                        .catch(e => {
+                            throw e
+                        });
+                    sendToClients("newServer", server);
+                }
+            }
+            if (category === "deleteServer") {
+                const power = await knex("accounts")
+                    .where({seshkey: seshkey})
+                    .first()
+                    .select("power")
+                    .catch(e => {
+                        throw e;
+                    });
+                if (power.power === "admin") {
+                    delete servers[message];
+                    await knex("servers")
+                        .where({id: message})
+                        .del()
+                        .catch(err => {
+                            throw err;
+                        });
+                    const deletedChannels: Record<string, any>[] = await knex("channels")
+                        .where({server: message})
+                        .select("*")
+                        .catch(err => {
+                            throw err;
+                        });
+                    await Promise.all(deletedChannels.map(({ id }) => deleteChannel(id, channels)));
+                    sendToClients("deleteServer", servers);
+                }
             }
         }
     });

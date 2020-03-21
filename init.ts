@@ -1,18 +1,16 @@
+import {getHighestFromArr} from "./helpers";
+
 const knex = require('./knex');
 
 import {User, Message} from "./interfaces";
 
 const updateMessagesFromDb = async (messages: Array<Message>) => {
     console.log("Getting messages from database...");
-    const rows = await knex.from("messages").select("*").catch(e => {throw e});
+    const rows = await knex.from("messages").select("*").catch(e => {
+        throw e
+    });
     for (const message of rows) {
-        const messageUser: User = {
-            username: "DeletedUser",
-            usernum: 9999,
-            currentChannel: 0,
-            id: 0,
-            messages: [],
-        };
+        const messageUser: User = await knex.from("accounts").where({id: message.userid}).first().select("*").catch(e => {throw e});
         const newMessage: Message = {
             user: messageUser,
             utcTime: message.utctime,
@@ -27,12 +25,15 @@ const updateMessagesFromDb = async (messages: Array<Message>) => {
 const updateChannelsFromDb = async (channels: Object) => {
     console.log("Getting channels from database...");
     try {
-        const rows = await knex.from("channels").select("*").catch(e => {throw e});
+        const rows = await knex.from("channels").select("*").catch(e => {
+            throw e
+        });
         for (const channel of rows) {
             channels[channel.id] = {
                 name: channel.name,
                 id: channel.id,
-                messages: channel.messages
+                messages: channel.messages,
+                server: channel.server
             };
         }
     } catch (err) {
@@ -40,29 +41,20 @@ const updateChannelsFromDb = async (channels: Object) => {
     }
 };
 
-const deleteOldUsers = (sNum) => {
-    console.log(sNum + ": Deleting old users...");
+const updateServersFromDb = async (servers: Object) => {
+    console.log("Getting servers from database...");
     try {
-        knex.raw('delete from users where snum <= ' + sNum + ";")
-            .catch(err => {
-                throw err;
-            });
-        console.log("Users deleted.");
-    } catch (err) {
-        throw err;
-    }
-};
-
-const incrementSNum = async () => {
-    try {
-        console.log("Incrementing server num...");
-        const rows = await knex("serverid")
-            .catch(e => {
-                throw e;
-            });
-        const sNum = rows[0].snum;
-        await knex("serverid").update({snum: Number(Number(sNum) + 1)}).catch(e => {throw e});
-        return sNum;
+        const rows = await knex.from("servers").select("*").catch(e => {
+            throw e
+        });
+        for (const server of rows) {
+            servers[server.id] = {
+                name: server.name,
+                id: server.id,
+                channels: server.channels,
+                users: server.users
+            };
+        }
     } catch (err) {
         throw err;
     }
@@ -73,7 +65,15 @@ const getHighestId = async (): Promise<number> => {
         id: number
     }
 
-    const ids: Array<idRet> = await knex("messages").select("id").catch(e => {throw e});
+    const ids = await knex("messages").select<idRet>("id").catch(e => {
+        throw e
+    });
+    const arrIds = ids.map(({id}) => id);
+    return getHighestFromArr(arrIds);
+};
+
+const getHighestChannel = async (): Promise<number> => {
+    const ids: Record<"id", number>[] = await knex("channels").select("id").catch(e => {throw e});
     const arrIds = ids.map(({id}) => id);
     if (arrIds.length === 0) {
         return 0;
@@ -82,16 +82,21 @@ const getHighestId = async (): Promise<number> => {
     }
 };
 
-const init = async (messages: Array<Message>, channels: Object) => {
+const getHighestServer = async (): Promise<number> => {
+    const ids: Record<"id", number>[] = await knex("servers").select("id").catch(e => {throw e});
+    const arrIds = ids.map(({id}) => id);
+    return arrIds.length === 0 ? 1 : Math.max(...arrIds) + 1 as number;
+};
+
+const init = async (messages: Array<Message>, channels: Object, servers: Object) => {
     try {
         console.log("Initializing...");
-        const sNum = await incrementSNum();
-        await deleteOldUsers(sNum);
         await updateMessagesFromDb(messages);
         await updateChannelsFromDb(channels);
+        await updateServersFromDb(servers);
     } catch (e) {
         throw e;
     }
 };
 
-export {init, getHighestId};
+export {init, getHighestId, getHighestChannel, getHighestServer};
