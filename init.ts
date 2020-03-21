@@ -48,12 +48,7 @@ const updateServersFromDb = async (servers: Object) => {
             throw e
         });
         for (const server of rows) {
-            servers[server.id] = {
-                name: server.name,
-                id: server.id,
-                channels: server.channels,
-                users: server.users
-            };
+            servers[server.id] = server;
         }
     } catch (err) {
         throw err;
@@ -61,11 +56,7 @@ const updateServersFromDb = async (servers: Object) => {
 };
 
 const getHighestId = async (): Promise<number> => {
-    interface idRet {
-        id: number
-    }
-
-    const ids = await knex("messages").select<idRet>("id").catch(e => {
+    const ids: Record<string, number>[] = await knex("messages").select("id").catch(e => {
         throw e
     });
     const arrIds = ids.map(({id}) => id);
