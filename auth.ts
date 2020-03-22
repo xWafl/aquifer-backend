@@ -25,7 +25,8 @@ const genSeshkey = () => {
 // };
 
 app.post("/createUser", async (req, res) => {
-    const {username, usernum, password} = req.body;
+    const {username, password} = req.body;
+    const usernum = Math.floor(Math.random() * 9000) + 1000;
     const hashedPw = await bcrypt.hash(password, 12);
     const userTaken = await knex("accounts")
         .where({username})
@@ -34,7 +35,7 @@ app.post("/createUser", async (req, res) => {
             throw err;
         });
     if (userTaken.length > 0) {
-        res.send("That user already exists!");
+        res.send({status: "That user already exists!"});
     } else {
         const ids: Record<string, number>[] = await knex("accounts").select("id").catch(e => {throw e});
         const arrIds: Array<number> = Array.from(ids, l => l.id);
@@ -62,7 +63,7 @@ app.post("/createUser", async (req, res) => {
             .catch(e => {
                 throw e;
             });
-        res.send("Success");
+        res.send({status: "Success", usernum: usernum});
     }
 });
 
