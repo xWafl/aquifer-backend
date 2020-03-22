@@ -26,7 +26,6 @@ const genSeshkey = () => {
 
 app.post("/createUser", async (req, res) => {
     const {username, password} = req.body;
-    console.log(`${username}|${password}`);
     const usernum = Math.floor(Math.random() * 9000) + 1000;
     const hashedPw = await bcrypt.hash(password, 12);
     const userTaken = await knex("accounts")
